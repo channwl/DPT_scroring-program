@@ -56,8 +56,8 @@ with st.sidebar:
     st.header("📂 STEP 1: 문제 파일 업로드")
     problem_pdf = st.file_uploader("👉 문제 PDF 파일을 업로드해 주세요.", type="pdf")
 
-    st.header("📂 STEP 2: 학생 답안 PDF 업로드")
-    answers_pdf = st.file_uploader("👉 학생 답안 PDF 파일(30명 이상)을 업로드해 주세요.", type="pdf")
+    st.header("📂 STEP 2: 학생 답안 PDF 여러 개 업로드")
+    answers_pdfs = st.file_uploader("👉 학생 답안 PDF 파일(복수 선택 가능)", type="pdf", accept_multiple_files=True)
 
     generate_rubric_btn = st.button("✅ 1단계: 채점 기준 생성")
     random_grade_btn = st.button("✅ 2단계: 랜덤 답안 채점 및 시각화")
@@ -77,20 +77,24 @@ if problem_pdf:
         # 세션에 저장
         st.session_state.rubric = rubric
 
-if answers_pdf and random_grade_btn:
+if answers_pdfs and random_grade_btn:
     if 'rubric' not in st.session_state:
         st.warning("먼저 채점 기준을 생성해 주세요.")
     else:
+        all_answers = []
         st.subheader("📜 학생 답안 추출 중...")
-        answers_text = extract_text_from_pdf(answers_pdf)
-        # 간단히 학생 답안 분리 (각 답안은 '학생' 또는 'Student'로 시작한다고 가정)
-        answers_list = answers_text.split("학생")
-        answers_list = [a.strip() for a in answers_list if len(a.strip()) > 20]
 
-        st.write(f"총 {len(answers_list)}명의 답안이 추출되었습니다.")
+        # 여러 PDF에서 텍스트 추출
+        for pdf_file in answers_pdfs:
+            answers_text = extract_text_from_pdf(pdf_file)
+            answers_list = answers_text.split("학생")
+            answers_list = [a.strip() for a in answers_list if len(a.strip()) > 20]
+            all_answers.extend(answers_list)
+
+        st.write(f"총 {len(all_answers)}명의 답안이 추출되었습니다.")
 
         # 랜덤으로 5명 추출 및 채점
-        random_answers = random.sample(answers_list, min(5, len(answers_list)))
+        random_answers = random.sample(all_answers, min(5, len(all_answers)))
         results = []
 
         for idx, ans in enumerate(random_answers, 1):
@@ -99,8 +103,6 @@ if answers_pdf and random_grade_btn:
                 st.write(f"### ✅ 학생 {idx} 채점 결과")
                 st.write(grading_result)
 
-                # 점수 추출 시도 (정규표현식 활용 추천, 여기선 수동으로 처리하거나 GPT가 표를 주는 경우 자동 추출 가능)
-                # 예제에서는 총점: XX점 형태로 반환한다고 가정
                 import re
                 match = re.search(r"총점[:：]?\s*(\d+)", grading_result)
                 if match:
