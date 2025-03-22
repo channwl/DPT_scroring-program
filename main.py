@@ -3,7 +3,8 @@ import PyPDF2
 import openai
 
 # GPT API Key 입력창, Streamlit 'Secret 창에서 열어볼 수 있음"
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+openai.api_key = st.secrets["openai"]["API_KEY"] 
+api_key = openai.api_key
 
 #쉽게 말하자면, PDF -> 글자 변환
 def etract_text_from_pdf(pdf_file):
