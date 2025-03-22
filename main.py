@@ -60,7 +60,7 @@ with st.sidebar:
     answers_pdfs = st.file_uploader("👉 학생 답안 PDF 파일(복수 선택 가능)", type="pdf", accept_multiple_files=True)
 
     generate_rubric_btn = st.button("✅ 1단계: 채점 기준 생성")
-    random_grade_btn = st.button("✅ 2단계: 랜덤 답안 채점 및 시각화")
+    single_random_grade_btn = st.button("✅ 2단계: 무작위 학생 한 명 채점하기")
 
 if problem_pdf:
     problem_text = extract_text_from_pdf(problem_pdf)
@@ -74,17 +74,15 @@ if problem_pdf:
         st.subheader("📊 생성된 채점 기준")
         st.write(rubric)
 
-        # 세션에 저장
         st.session_state.rubric = rubric
 
-if answers_pdfs and random_grade_btn:
+if answers_pdfs and single_random_grade_btn:
     if 'rubric' not in st.session_state:
         st.warning("먼저 채점 기준을 생성해 주세요.")
     else:
         all_answers = []
         st.subheader("📜 학생 답안 추출 중...")
 
-        # 여러 PDF에서 텍스트 추출
         for pdf_file in answers_pdfs:
             answers_text = extract_text_from_pdf(pdf_file)
             answers_list = answers_text.split("학생")
@@ -93,29 +91,10 @@ if answers_pdfs and random_grade_btn:
 
         st.write(f"총 {len(all_answers)}명의 답안이 추출되었습니다.")
 
-        # 랜덤으로 5명 추출 및 채점
-        random_answers = random.sample(all_answers, min(5, len(all_answers)))
-        results = []
+        # 무작위 한 명 추출 후 채점
+        random_answer = random.choice(all_answers)
+        with st.spinner("무작위 학생 답안을 채점하는 중입니다..."):
+            grading_result = grade_student_answer(st.session_state.rubric, random_answer)
 
-        for idx, ans in enumerate(random_answers, 1):
-            with st.spinner(f"{idx}번째 학생 답안 채점 중..."):
-                grading_result = grade_student_answer(st.session_state.rubric, ans)
-                st.write(f"### ✅ 학생 {idx} 채점 결과")
-                st.write(grading_result)
-
-                import re
-                match = re.search(r"총점[:：]?\s*(\d+)", grading_result)
-                if match:
-                    total_score = int(match.group(1))
-                    results.append(total_score)
-
-        # 시각화
-        if results:
-            st.subheader("📈 점수 분포 시각화")
-            score_df = pd.DataFrame({'Score': results})
-            fig, ax = plt.subplots()
-            ax.hist(score_df['Score'], bins=10, edgecolor='black')
-            ax.set_xlabel("점수")
-            ax.set_ylabel("학생 수")
-            ax.set_title("랜덤 추출 학생 점수 분포")
-            st.pyplot(fig)
+        st.success("무작위 학생의 채점 결과:")
+        st.write(grading_result)
