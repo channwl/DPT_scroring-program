@@ -87,25 +87,22 @@ if answers_pdfs and single_random_grade_btn:
 
         for pdf_file in answers_pdfs:
             answers_text = extract_text_from_pdf(pdf_file)
-            # 각 답안이 "학생: [이름] 학번: [학번]" 형태로 시작한다고 가정
-            answers = answers_text.split("학생:")
-            for ans in answers:
-                ans = ans.strip()
-                if len(ans) > 20:
-                    lines = ans.split('\n', 1)
-                    if len(lines) > 1:
-                        first_line = lines[0]
-                        content = lines[1]
-                        # 이름과 학번 추출
-                        name_match = re.search(r"(.*?)\s+학번[:：]?\s*(\d+)", first_line)
-                        if name_match:
-                            student_name = name_match.group(1).strip()
-                            student_id = name_match.group(2).strip()
-                        else:
-                            student_name = "알 수 없음"
-                            student_id = "알 수 없음"
-                        all_answers.append(content.strip())
-                        student_info_list.append({'name': student_name, 'id': student_id})
+            answers_list = answers_text.split("학생")
+            answers_list = [a.strip() for a in answers_list if len(a.strip()) > 20]
+            
+            # 파일명에서 이름과 학번 추출 (파일명 예: 홍길동_20231234.pdf)
+            filename = pdf_file.name
+            file_match = re.match(r"(.+)_([0-9]{8})", filename)
+            if file_match:
+                student_name_from_file = file_match.group(1)
+                student_id_from_file = file_match.group(2)
+            else:
+                student_name_from_file = "알 수 없음"
+                student_id_from_file = "알 수 없음"
+
+            for ans in answers_list:
+                all_answers.append(ans)
+                student_info_list.append({'name': student_name_from_file, 'id': student_id_from_file})
 
         st.write(f"총 {len(all_answers)}명의 답안이 추출되었습니다.")
 
