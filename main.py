@@ -4,6 +4,7 @@ from openai import OpenAI
 import random
 import matplotlib.pyplot as plt
 import pandas as pd
+import re
 
 # OpenAI 클라이언트 최신 방식
 client = OpenAI(api_key=st.secrets["openai"]["API_KEY"])
