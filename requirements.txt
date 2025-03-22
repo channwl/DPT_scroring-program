@@ -1,3 +1,6 @@
 streamlit
 PyPDF2
 openai
+matplotlib
+pandas
+
