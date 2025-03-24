@@ -55,10 +55,24 @@ def grade_student_answer(rubric, answer_text):
 
 # 학생 답안 및 정보 추출 함수 (보편형)
 def extract_answers_and_info(pdf_text):
-    pattern = re.compile(r"(.*?)\\s*\\(?([0-9]{8})\\)?\\s*(.*?)((?=(?:\\n.*?\\([0-9]{8})|$)))", re.DOTALL)
+    pattern = re.compile(r"([가-힣]{2,10})\s*\(?([0-9]{8})\)?\s*(.*?)(?=(?:[가-힣]{2,10}\s*\(?[0-9]{8}\)?|$))", re.DOTALL)
     matches = pattern.finditer(pdf_text)
+
     answers = []
     student_info = []
+
+    for match in matches:
+        name = match.group(1).strip()
+        student_id = match.group(2).strip()
+        answer_text = match.group(3).strip()
+
+        if len(answer_text) > 20:
+            answers.append(answer_text)
+            student_info.append({'name': name, 'id': student_id})
+
+    return answers, student_info
+
+    
 
     for match in matches:
         name = match.group(1).strip()
