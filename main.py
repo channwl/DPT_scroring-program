@@ -37,11 +37,16 @@ def generate_initial_rubric(problem_text):
     )
     return response.choices[0].message.content
 
-# 학생 답안 채점 함수
+# 학생 답안 채점 함수 (수정된 버전)
 def grade_student_answer(rubric, answer_text):
     prompt = f"""다음은 교수자가 작성한 채점 기준입니다:\n{rubric}\n\n
 그리고 아래는 학생의 답안입니다:\n{answer_text}\n\n
-이 채점 기준에 따라 학생의 답안을 점수화하고, 항목별 점수와 총점, 간략 피드백을 표 형태로 작성해 주세요."""
+이 채점 기준에 따라 학생의 답안을 점수화하고, 아래 사항을 꼭 지켜 작성해 주세요:
+- 항목별 점수, 항목명, 세부 평가 내용을 표로 작성
+- 표 마지막에 총점을 표기
+- 총점은 반드시 각 항목 점수의 합계와 일치하도록 계산
+- 항목별 점수 합계와 총점이 일치하는지 검토 후 작성
+- 간략한 피드백도 표 아래에 포함"""
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -89,8 +94,7 @@ if answers_pdfs and single_random_grade_btn:
             answers_text = extract_text_from_pdf(pdf_file)
             answers_list = answers_text.split("학생")
             answers_list = [a.strip() for a in answers_list if len(a.strip()) > 20]
-            
-            # 파일명에서 이름과 학번 추출 (파일명 예: 홍길동_20231234.pdf)
+
             filename = pdf_file.name
             file_match = re.match(r"(.+)_([0-9]{8})", filename)
             if file_match:
@@ -106,7 +110,6 @@ if answers_pdfs and single_random_grade_btn:
 
         st.write(f"총 {len(all_answers)}명의 답안이 추출되었습니다.")
 
-        # 무작위 한 명 추출 후 채점
         random_index = random.randint(0, len(all_answers) - 1)
         random_answer = all_answers[random_index]
         selected_student = student_info_list[random_index]
