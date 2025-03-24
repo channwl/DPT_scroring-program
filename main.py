@@ -2,8 +2,6 @@ import streamlit as st
 import PyPDF2
 from openai import OpenAI
 import random
-import matplotlib.pyplot as plt
-import pandas as pd
 import re
 
 # OpenAI 클라이언트 최신 방식
@@ -55,6 +53,24 @@ def grade_student_answer(rubric, answer_text):
     )
     return response.choices[0].message.content
 
+# 학생 답안 및 정보 추출 함수 (보편형)
+def extract_answers_and_info(pdf_text):
+    pattern = re.compile(r"(.*?)\\s*\\(?([0-9]{8})\\)?\\s*(.*?)((?=(?:\\n.*?\\([0-9]{8})|$)))", re.DOTALL)
+    matches = pattern.finditer(pdf_text)
+    answers = []
+    student_info = []
+
+    for match in matches:
+        name = match.group(1).strip()
+        student_id = match.group(2).strip() if match.group(2) else "알 수 없음"
+        answer_text = match.group(3).strip()
+
+        if len(answer_text) > 20:  # 최소 길이 필터
+            answers.append(answer_text)
+            student_info.append({'name': name, 'id': student_id})
+
+    return answers, student_info
+
 # Streamlit UI 시작
 st.title("🎓 AI 교수자 채점 & 분석 시스템")
 
@@ -91,22 +107,21 @@ if answers_pdfs and single_random_grade_btn:
         st.subheader("📜 학생 답안 추출 중...")
 
         for pdf_file in answers_pdfs:
-            answers_text = extract_text_from_pdf(pdf_file)
-            answers_list = answers_text.split("학생")
-            answers_list = [a.strip() for a in answers_list if len(a.strip()) > 20]
+            pdf_text = extract_text_from_pdf(pdf_file)
+            answers, info_list = extract_answers_and_info(pdf_text)
 
+            # 파일명 정보도 fallback 으로 추가
             filename = pdf_file.name
             file_match = re.match(r"(.+)_([0-9]{8})", filename)
-            if file_match:
-                student_name_from_file = file_match.group(1)
-                student_id_from_file = file_match.group(2)
-            else:
-                student_name_from_file = "알 수 없음"
-                student_id_from_file = "알 수 없음"
+            fallback_name = file_match.group(1) if file_match else "알 수 없음"
+            fallback_id = file_match.group(2) if file_match else "알 수 없음"
 
-            for ans in answers_list:
+            for i, ans in enumerate(answers):
+                # 추출 실패 시 파일명 정보 대체
+                name = info_list[i]['name'] if info_list[i]['name'] else fallback_name
+                sid = info_list[i]['id'] if info_list[i]['id'] else fallback_id
                 all_answers.append(ans)
-                student_info_list.append({'name': student_name_from_file, 'id': student_id_from_file})
+                student_info_list.append({'name': name, 'id': sid})
 
         st.write(f"총 {len(all_answers)}명의 답안이 추출되었습니다.")
 
