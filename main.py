@@ -36,20 +36,25 @@ def generate_initial_rubric(problem_text):
 
 # 학생 답안 채점 함수 (GPT는 표만 작성하도록 시킴)
 def grade_student_answer(rubric, answer_text):
-    prompt = f"""다음은 교수자가 작성한 채점 기준입니다:\n{rubric}\n\n
-아래는 학생 답안입니다:\n{answer_text}\n\n
+    prompt = f"""다음은 교수자가 작성한 채점 기준입니다:
+{rubric}
+
+아래는 학생 답안입니다:
+{answer_text}
+
 각 항목별로 아래 형태의 표를 작성해 주세요:
 | 채점 항목 | 배점 | GPT 추천 점수 | 세부 평가 |
 
-- 표를 사용자가 알아보기 쉽게 정리해주세요
+- 표 마지막에 GPT 추천 총점도 표로 작성해 주세요.
 - 마지막에 간략한 피드백도 포함해 주세요.
-
+"""
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=2000
     )
     return response.choices[0].message.content
+
 
 # 학생 답안 및 정보 추출 함수
 def extract_answers_and_info(pdf_text):
