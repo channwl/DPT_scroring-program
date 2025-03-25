@@ -41,8 +41,8 @@ def grade_student_answer(rubric, answer_text):
 각 항목별로 아래 형태의 표를 작성해 주세요:
 | 채점 항목 | 배점 | GPT 추천 점수 | 세부 평가 |
 
-- 표 마지막에 GPT 추천 총점도 표로 작성해 주세요.
-- 마지막에 간략한 피드백도 포함해 주세요."""
+- 표를 사용자가 알아보기 쉽게 정리해주세요
+- 마지막에 간략한 피드백도 포함해 주세요.
 
     response = client.chat.completions.create(
         model="gpt-4o",
