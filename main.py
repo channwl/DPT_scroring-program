@@ -72,7 +72,7 @@ def grade_student_answer(rubric, answer_text):
 
 # 학생 답안 및 정보 추출 함수
 def extract_answers_and_info(pdf_text):
-    pattern = re.compile(r"([가-힣]{2,10})\\s*\\(?([0-9]{8})\\)?\\s*(.*?)(?=(?:[가-힣]{2,10}\\s*\\(?[0-9]{8}\\)?|$))", re.DOTALL)
+    pattern = re.compile(r"([가-힣]{2,10})\s*\(?([0-9]{8})\)?\s*(.*?)(?=(?:[가-힣]{2,10}\s*\(?[0-9]{8}\)?|$))", re.DOTALL)
     matches = pattern.finditer(pdf_text)
 
     answers = []
