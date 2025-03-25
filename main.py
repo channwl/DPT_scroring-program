@@ -34,25 +34,6 @@ def generate_initial_rubric(problem_text):
     )
     return response.choices[0].message.content
 
-# GPT 채점 표 파싱 함수 (GPT 추천 점수까지 파싱)
-def parse_grading_table(gpt_response):
-    pattern = r'\\|?\\s*(.*?)\\s*\\|\\s*(\\d+)\\s*\\|\\s*(\\d+)\\s*\\|\\s*(.*?)\\n'
-    matches = re.findall(pattern, gpt_response)
-
-    items = []
-    for match in matches:
-        항목명, 배점, 추천점수, 평가내용 = match
-        items.append({
-            "항목": 항목명.strip(),
-            "배점": int(배점.strip()),
-            "GPT 추천 점수": int(추천점수.strip()),
-            "세부 평가": 평가내용.strip()
-        })
-
-    df = pd.DataFrame(items)
-    df["점수 차이"] = df["배점"] - df["GPT 추천 점수"]
-    return df
-
 # 학생 답안 채점 함수 (GPT는 표만 작성하도록 시킴)
 def grade_student_answer(rubric, answer_text):
     prompt = f"""다음은 교수자가 작성한 채점 기준입니다:\n{rubric}\n\n
@@ -90,7 +71,7 @@ def extract_answers_and_info(pdf_text):
     return answers, student_info
 
 # Streamlit UI 시작
-st.title("🎓 AI 교수자 채점 & 검산 시스템")
+st.title("🎓 AI 교수자 채점 시스템")
 
 with st.sidebar:
     st.header("📂 STEP 1: 문제 파일 업로드")
@@ -147,16 +128,3 @@ if answers_pdfs and single_random_grade_btn:
 
         st.success("✅ GPT 추천 채점 결과:")
         st.write(grading_result)
-
-        st.subheader("🧮 자동 검산 및 정리:")
-        grading_df = parse_grading_table(grading_result)
-        st.dataframe(grading_df)
-
-        calculated_total = grading_df["GPT 추천 점수"].sum()
-        st.info(f"💡 코드 검산 결과 총점: {calculated_total}점")
-
-        diff_count = grading_df[grading_df["점수 차이"] < 0].shape[0]
-        if diff_count > 0:
-            st.warning("⚠ 일부 항목에서 추천 점수가 배점을 초과한 항목이 발견되었습니다. GPT 응답을 검토해 주세요.")
-        else:
-            st.success("모든 항목이 정상적으로 배점 내에서 추천 점수가 할당되었습니다.")
