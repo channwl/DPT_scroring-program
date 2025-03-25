@@ -3,6 +3,7 @@ import PyPDF2
 from openai import OpenAI
 import random
 import re
+import pandas as pd
 
 # OpenAI 클라이언트 최신 방식
 client = OpenAI(api_key=st.secrets["openai"]["API_KEY"])
@@ -22,11 +23,9 @@ def generate_initial_rubric(problem_text):
     prompt = f"""다음 문제에 대한 초기 채점 기준을 작성해 주세요.
 문제: {problem_text}
 
-- 평가 항목과 점수 배점은 문제의 성격에 맞게 자유롭게 설계해 주세요.
-- 항목별로 구체적인 평가 포인트도 작성해 주세요.
-- 예시) 
-  채점 항목: 논리적 전개 | 배점: 20점 | 세부 기준: 서술이 논리적이며 구조가 잘 짜여 있는지
-- 상세하고 일관성 있게 작성해 주세요."""
+- 항목별로 '채점 항목 | 배점 | 세부 기준' 형태의 표로 작성해 주세요.
+- 표 아래에 항목별 배점 합계도 표기해 주세요.
+- 세부 기준은 상세하고 구체적으로 작성해 주세요."""
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -35,27 +34,38 @@ def generate_initial_rubric(problem_text):
     )
     return response.choices[0].message.content
 
-# 학생 답안 채점 함수 (수정된 버전)
+# GPT 채점 표 파싱 함수
+def parse_rubric_table(rubric_text):
+    pattern = r'\\|?\\s*(.*?)\\s*\\|\\s*(\\d+)점?\\s*\\|\\s*(.*?)\\n'
+    matches = re.findall(pattern, rubric_text)
+
+    items = []
+    for match in matches:
+        name, score, detail = match
+        items.append({"항목": name.strip(), "배점": int(score.strip()), "세부 기준": detail.strip()})
+
+    return pd.DataFrame(items)
+
+# 학생 답안 채점 함수 (GPT는 평가 및 추천 점수만 작성)
 def grade_student_answer(rubric, answer_text):
     prompt = f"""다음은 교수자가 작성한 채점 기준입니다:\n{rubric}\n\n
-그리고 아래는 학생의 답안입니다:\n{answer_text}\n\n
-이 채점 기준에 따라 학생의 답안을 점수화하고, 아래 사항을 꼭 지켜 작성해 주세요:
-- 항목별 점수, 항목명, 세부 평가 내용을 표로 작성
-- 표 마지막에 총점을 표기
-- 총점은 반드시 각 항목 점수의 합계와 일치하도록 계산
-- 항목별 점수 합계와 총점이 일치하는지 검토 후 작성
-- 간략한 피드백도 표 아래에 포함"""
+아래는 학생 답안입니다:\n{answer_text}\n\n
+각 항목별로 아래 형태의 표를 작성해 주세요:
+| 채점 항목 | 배점 | GPT 추천 점수 | 세부 평가 |
+
+- 표 마지막에 GPT 추천 총점도 표로 기재해 주세요.
+- 피드백도 마지막에 포함해 주세요."""
 
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=1500
+        max_tokens=2000
     )
     return response.choices[0].message.content
 
-# 학생 답안 및 정보 추출 함수 (보편형)
+# 학생 답안 및 정보 추출 함수
 def extract_answers_and_info(pdf_text):
-    pattern = re.compile(r"([가-힣]{2,10})\s*\(?([0-9]{8})\)?\s*(.*?)(?=(?:[가-힣]{2,10}\s*\(?[0-9]{8}\)?|$))", re.DOTALL)
+    pattern = re.compile(r"([가-힣]{2,10})\\s*\\(?([0-9]{8})\\)?\\s*(.*?)(?=(?:[가-힣]{2,10}\\s*\\(?[0-9]{8}\\)?|$))", re.DOTALL)
     matches = pattern.finditer(pdf_text)
 
     answers = []
@@ -72,21 +82,8 @@ def extract_answers_and_info(pdf_text):
 
     return answers, student_info
 
-    
-
-    for match in matches:
-        name = match.group(1).strip()
-        student_id = match.group(2).strip() if match.group(2) else "알 수 없음"
-        answer_text = match.group(3).strip()
-
-        if len(answer_text) > 20:  # 최소 길이 필터
-            answers.append(answer_text)
-            student_info.append({'name': name, 'id': student_id})
-
-    return answers, student_info
-
 # Streamlit UI 시작
-st.title("🎓 AI 교수자 채점 & 분석 시스템")
+st.title("🎓 AI 교수자 채점 & 검산 시스템")
 
 with st.sidebar:
     st.header("📂 STEP 1: 문제 파일 업로드")
@@ -124,16 +121,9 @@ if answers_pdfs and single_random_grade_btn:
             pdf_text = extract_text_from_pdf(pdf_file)
             answers, info_list = extract_answers_and_info(pdf_text)
 
-            # 파일명 정보도 fallback 으로 추가
-            filename = pdf_file.name
-            file_match = re.match(r"(.+)_([0-9]{8})", filename)
-            fallback_name = file_match.group(1) if file_match else "알 수 없음"
-            fallback_id = file_match.group(2) if file_match else "알 수 없음"
-
             for i, ans in enumerate(answers):
-                # 추출 실패 시 파일명 정보 대체
-                name = info_list[i]['name'] if info_list[i]['name'] else fallback_name
-                sid = info_list[i]['id'] if info_list[i]['id'] else fallback_id
+                name = info_list[i]['name']
+                sid = info_list[i]['id']
                 all_answers.append(ans)
                 student_info_list.append({'name': name, 'id': sid})
 
@@ -145,8 +135,10 @@ if answers_pdfs and single_random_grade_btn:
 
         st.info(f"이번에 채점할 학생: 이름 - {selected_student['name']}, 학번 - {selected_student['id']}")
 
-        with st.spinner("무작위 학생 답안을 채점하는 중입니다..."):
+        with st.spinner("무작위 학생 답안을 채점 중입니다..."):
             grading_result = grade_student_answer(st.session_state.rubric, random_answer)
 
-        st.success("무작위 학생의 채점 결과:")
+        st.success("무작위 학생 채점 결과 (GPT 추천):")
         st.write(grading_result)
+
+        # 총점 검산 (배점표 + GPT 추천 점수 파싱해서 재검산 가능하도록 추가 구현 필요)")}
