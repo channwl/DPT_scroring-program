@@ -2,20 +2,19 @@ import streamlit as st
 import PyPDF2
 import random
 import re
-from langchain.chat_models import ChatOpenAI
-from langchain.chains import ConversationChain
+from langchain_community.chat_models import ChatOpenAI
+from langchain.chains import LLMChain
 from langchain.memory import ConversationSummaryMemory
+from langchain_core.prompts import PromptTemplate
 
-# OpenAI GPT-4o 모델을 LangChain에 연결
-# temperature=0은 가장 일관성 있는 응답을 얻기 위함
+# GPT-4o 모델을 LangChain에 연결
 llm = ChatOpenAI(
     openai_api_key=st.secrets["openai"]["API_KEY"],
     model_name="gpt-4o",
     temperature=0
 )
 
-# LangChain의 메모리 생성: 이전 대화 요약을 저장함
-# 채점 기준 생성과 수정에 사용되는 대화 기록을 기억함
+# 채점 기준 생성 및 수정 시 사용하는 Memory 초기화
 if "rubric_memory" not in st.session_state:
     st.session_state.rubric_memory = ConversationSummaryMemory(
         llm=llm,
@@ -23,14 +22,15 @@ if "rubric_memory" not in st.session_state:
         return_messages=True
     )
 
-# GPT 모델과 메모리를 연결한 대화 체인 생성
-rubric_conversation = ConversationChain(
+# 최신 방식으로 GPT 체인 구성 (ConversationChain 대신 LLMChain 사용)
+prompt_template = PromptTemplate.from_template("{input}")
+rubric_chain = LLMChain(
     llm=llm,
-    memory=st.session_state.rubric_memory,
-    verbose=False
+    prompt=prompt_template,
+    memory=st.session_state.rubric_memory
 )
 
-# PDF 파일에서 텍스트를 추출하는 함수
+# PDF 텍스트 추출
 def extract_text_from_pdf(pdf_file):
     pdf_reader = PyPDF2.PdfReader(pdf_file)
     text = ""
@@ -40,7 +40,7 @@ def extract_text_from_pdf(pdf_file):
             text += extracted
     return text
 
-# 학생 이름, 학번, 답안을 추출하는 함수 (정규표현식 사용)
+# 학생 정보 + 답안 추출
 def extract_answers_and_info(pdf_text):
     pattern = re.compile(
         r"([가-힣]{2,10})\s\(?([0-9]{8})\)?\s(.?)(?=(?:[가-힣]{2,10}\s\(?[0-9]{8}\)?|$))",
@@ -58,10 +58,9 @@ def extract_answers_and_info(pdf_text):
             student_info.append({'name': name, 'id': student_id})
     return answers, student_info
 
-# Streamlit 앱 시작
+# Streamlit UI 시작
 st.title("🎓 AI 교수자 채점 시스템")
 
-# 사이드바 UI: 문제/답안 업로드 및 버튼
 with st.sidebar:
     st.header("📂 STEP 1: 문제 파일 업로드")
     problem_pdf = st.file_uploader("문제 PDF 업로드", type="pdf")
@@ -73,15 +72,14 @@ with st.sidebar:
     single_random_grade_btn = st.button("✅ 2단계: 무작위 학생 채점")
     update_rubric_btn = st.button("✅ 3단계: 교수자 피드백 반영")
 
-# 문제 PDF가 업로드되었을 때
+# 1단계: 문제 기반 채점 기준 생성
 if problem_pdf:
     problem_text = extract_text_from_pdf(problem_pdf)
-    rubric_key = f"rubric_{problem_pdf.name}"  # 문제 파일 이름으로 고유 키 생성
+    rubric_key = f"rubric_{problem_pdf.name}"
 
     st.subheader("📜 문제 내용")
     st.write(problem_text)
 
-    # 채점 기준 생성
     if generate_rubric_btn:
         if rubric_key not in st.session_state:
             prompt = f"""다음 문제에 대한 채점 기준을 작성해 주세요:
@@ -89,15 +87,16 @@ if problem_pdf:
 - 항목별로 '채점 항목 | 배점 | 세부 기준' 형태로 작성해 주세요.
 - 표 아래에 배점 합계도 적어주세요."""
             with st.spinner("GPT가 채점 기준을 생성 중입니다..."):
-                rubric = rubric_conversation.predict(input=prompt)
+                rubric = rubric_chain.run(input=prompt)
                 st.session_state[rubric_key] = rubric
             st.success("✅ 채점 기준 생성 완료")
         else:
             st.info("기존 채점 기준이 이미 존재합니다.")
+
         st.subheader("📊 채점 기준")
         st.write(st.session_state[rubric_key])
 
-# 무작위 학생 채점 실행
+# 2단계: 무작위 학생 채점
 if answers_pdfs and single_random_grade_btn:
     if problem_pdf is None:
         st.warning("문제 PDF를 먼저 업로드하세요.")
@@ -134,13 +133,13 @@ if answers_pdfs and single_random_grade_btn:
 표 아래에 총점과 간단한 피드백도 작성해주세요."""
 
                 with st.spinner("GPT가 채점 중입니다..."):
-                    grading_result = rubric_conversation.predict(input=prompt)
+                    grading_result = rubric_chain.run(input=prompt)
 
                 st.success("✅ 채점 완료")
                 st.subheader("📋 GPT 채점 결과")
                 st.write(grading_result)
 
-# 교수자 피드백 입력 및 기준 수정
+# 3단계: 교수자 피드백 기반 채점 기준 수정
 if update_rubric_btn:
     if problem_pdf is None:
         st.warning("문제 PDF가 필요합니다.")
@@ -164,7 +163,7 @@ if update_rubric_btn:
 - 형식은 '채점 항목 | 배점 | 세부 기준' 표 형식으로 유지해주세요."""
 
                 with st.spinner("GPT가 기준을 수정 중입니다..."):
-                    updated_rubric = rubric_conversation.predict(input=prompt)
+                    updated_rubric = rubric_chain.run(input=prompt)
                     st.session_state[rubric_key] = updated_rubric
 
                 st.success("✅ 채점 기준 수정 완료")
