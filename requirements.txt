@@ -1,6 +1,7 @@
 streamlit
 PyPDF2
-openai
-matplotlib
 pandas
+openai
+langgraph
+typing-extensions
 
