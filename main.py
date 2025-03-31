@@ -42,26 +42,23 @@ def extract_text_from_pdf(pdf_file):
             text += extracted
     return text
 
-# 교수자 예시 입력 기반 정규표현식 생성
-def generate_regex_from_example(example):
-    name_match = re.search(r"[가-힣]{2,}", example)
-    id_match = re.search(r"\(?\d{8}\)?", example)
-    if name_match and id_match:
-        return r"([가-힣]{2,10})\s*\(?(\d{8})\)?\s*([\s\S]*?)(?=(?:[가-힣]{2,10})\s*\(?\d{8}\)?|\Z)"
-    return None
+# 파일명에서 이름/학번 추출
+def extract_info_from_filename(filename):
+    id_match = re.search(r"\d{8}", filename)
+    name_match = re.findall(r"[가-힣]{2,4}", filename)
+    student_id = id_match.group() if id_match else "UnknownID"
+    student_name = name_match[-1] if name_match else "UnknownName"
+    return student_name, student_id
 
-# 정규표현식 기반 답안 추출
-def extract_answers_and_info(pdf_text, pattern_str):
-    pattern = re.compile(pattern_str, re.MULTILINE)
-    matches = pattern.finditer(pdf_text)
+# PDF 파일들에서 답안 및 학생 정보 추출
+def extract_answers_and_info_from_files(pdf_files):
     answers = []
     student_info = []
-    for match in matches:
-        name = match.group(1).strip()
-        student_id = match.group(2).strip()
-        answer_text = match.group(3).strip()
-        if len(answer_text) > 20:
-            answers.append(answer_text)
+    for pdf_file in pdf_files:
+        pdf_text = extract_text_from_pdf(pdf_file)
+        name, student_id = extract_info_from_filename(pdf_file.name)
+        if len(pdf_text.strip()) > 20:
+            answers.append(pdf_text)
             student_info.append({'name': name, 'id': student_id})
     return answers, student_info
 
@@ -75,19 +72,9 @@ with st.sidebar:
     st.header("📂 STEP 2: 학생 답안 PDF 업로드")
     answers_pdfs = st.file_uploader("답안 PDF 업로드 (복수 가능)", type="pdf", accept_multiple_files=True)
 
-    st.header("✍️ STEP 2-1: 학생 정보 예시 입력")
-    format_example = st.text_input("예시: 홍길동 (20231234)", value="홍길동 (20231234)")
-
     generate_rubric_btn = st.button("✅ 1단계: 채점 기준 생성")
     single_random_grade_btn = st.button("✅ 2단계: 무작위 학생 채점")
     update_rubric_btn = st.button("✅ 3단계: 교수자 피드백 반영")
-
-# 예시 기반 정규표현식 생성
-custom_pattern = generate_regex_from_example(format_example)
-if format_example and not custom_pattern:
-    st.warning("❗ 예시에서 이름(한글)과 학번(8자리)을 인식하지 못했습니다. 다시 입력해주세요.")
-elif custom_pattern:
-    st.code(custom_pattern, language="regex")
 
 # 1단계: 채점 기준 생성
 if problem_pdf:
@@ -117,23 +104,15 @@ if problem_pdf:
 if answers_pdfs and single_random_grade_btn:
     if problem_pdf is None:
         st.warning("문제 PDF를 먼저 업로드하세요.")
-    elif not custom_pattern:
-        st.warning("학생 정보 예시를 입력해 정규표현식을 생성해주세요.")
     else:
         rubric_key = f"rubric_{problem_pdf.name}"
         if rubric_key not in st.session_state:
             st.warning("채점 기준을 먼저 생성하세요.")
         else:
-            all_answers = []
-            student_info_list = []
-            for pdf_file in answers_pdfs:
-                pdf_text = extract_text_from_pdf(pdf_file)
-                answers, info_list = extract_answers_and_info(pdf_text, custom_pattern)
-                all_answers.extend(answers)
-                student_info_list.extend(info_list)
+            all_answers, student_info_list = extract_answers_and_info_from_files(answers_pdfs)
 
             if not all_answers:
-                st.warning("학생 답안을 찾을 수 없습니다. 예시 형식을 다시 확인해주세요.")
+                st.warning("학생 답안을 찾을 수 없습니다.")
             else:
                 random_index = random.randint(0, len(all_answers) - 1)
                 random_answer = all_answers[random_index]
