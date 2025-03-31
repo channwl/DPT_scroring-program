@@ -1,15 +1,36 @@
 import streamlit as st
 import PyPDF2
-from openai import OpenAI
 import random
 import re
-import pandas as pd
+from langchain.chat_models import ChatOpenAI
+from langchain.chains import ConversationChain
+from langchain.memory import ConversationSummaryMemory
 
-# OpenAI 클라이언트 최신 방식
-client = OpenAI(api_key=st.secrets["openai"]["API_KEY"])
+# OpenAI GPT-4o 모델을 LangChain에 연결
+# temperature=0은 가장 일관성 있는 응답을 얻기 위함
+llm = ChatOpenAI(
+    openai_api_key=st.secrets["openai"]["API_KEY"],
+    model_name="gpt-4o",
+    temperature=0
+)
 
+# LangChain의 메모리 생성: 이전 대화 요약을 저장함
+# 채점 기준 생성과 수정에 사용되는 대화 기록을 기억함
+if "rubric_memory" not in st.session_state:
+    st.session_state.rubric_memory = ConversationSummaryMemory(
+        llm=llm,
+        memory_key="chat_history",
+        return_messages=True
+    )
 
-# PDF → 텍스트 추출 함수
+# GPT 모델과 메모리를 연결한 대화 체인 생성
+rubric_conversation = ConversationChain(
+    llm=llm,
+    memory=st.session_state.rubric_memory,
+    verbose=False
+)
+
+# PDF 파일에서 텍스트를 추출하는 함수
 def extract_text_from_pdf(pdf_file):
     pdf_reader = PyPDF2.PdfReader(pdf_file)
     text = ""
@@ -19,44 +40,7 @@ def extract_text_from_pdf(pdf_file):
             text += extracted
     return text
 
-
-# 초기 채점 기준 생성 함수
-def generate_initial_rubric(problem_text):
-    prompt = f"""다음 문제에 대한 초기 채점 기준을 작성해 주세요.
-문제: {problem_text}
-- 항목별로 '채점 항목 | 배점 | 세부 기준' 형태의 표로 작성해 주세요.
-- 표 아래에 항목별 배점 합계도 표기해 주세요.
-- 세부 기준은 상세하고 구체적으로 작성해 주세요."""
-    
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=1500
-    )
-    return response.choices[0].message.content
-
-
-# 학생 답안 채점 함수
-def grade_student_answer(rubric, answer_text):
-    prompt = f"""다음은 교수자가 작성한 채점 기준입니다:
-{rubric}
-아래는 학생 답안입니다:
-{answer_text}
-각 항목별로 아래 형태의 표를 작성해 주세요:
-| 채점 항목 | 배점 | GPT 추천 점수 | 세부 평가 |
-- 표 마지막에 GPT 추천 총점도 표로 작성해 주세요.
-- 마지막에 간략한 피드백도 포함해 주세요.
-"""
-    
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=2000
-    )
-    return response.choices[0].message.content
-
-
-# 학생 답안 및 정보 추출 함수
+# 학생 이름, 학번, 답안을 추출하는 함수 (정규표현식 사용)
 def extract_answers_and_info(pdf_text):
     pattern = re.compile(
         r"([가-힣]{2,10})\s\(?([0-9]{8})\)?\s(.?)(?=(?:[가-힣]{2,10}\s\(?[0-9]{8}\)?|$))",
@@ -74,66 +58,117 @@ def extract_answers_and_info(pdf_text):
             student_info.append({'name': name, 'id': student_id})
     return answers, student_info
 
-
-# Streamlit UI 시작
+# Streamlit 앱 시작
 st.title("🎓 AI 교수자 채점 시스템")
 
+# 사이드바 UI: 문제/답안 업로드 및 버튼
 with st.sidebar:
     st.header("📂 STEP 1: 문제 파일 업로드")
-    problem_pdf = st.file_uploader("👉 문제 PDF 파일을 업로드해 주세요.", type="pdf")
+    problem_pdf = st.file_uploader("문제 PDF 업로드", type="pdf")
 
-    st.header("📂 STEP 2: 학생 답안 PDF 여러 개 업로드")
-    answers_pdfs = st.file_uploader("👉 학생 답안 PDF 파일(복수 선택 가능)", type="pdf", accept_multiple_files=True)
+    st.header("📂 STEP 2: 학생 답안 PDF 업로드")
+    answers_pdfs = st.file_uploader("답안 PDF 업로드 (복수 가능)", type="pdf", accept_multiple_files=True)
 
     generate_rubric_btn = st.button("✅ 1단계: 채점 기준 생성")
-    single_random_grade_btn = st.button("✅ 2단계: 무작위 학생 한 명 채점하기")
+    single_random_grade_btn = st.button("✅ 2단계: 무작위 학생 채점")
+    update_rubric_btn = st.button("✅ 3단계: 교수자 피드백 반영")
 
-
+# 문제 PDF가 업로드되었을 때
 if problem_pdf:
     problem_text = extract_text_from_pdf(problem_pdf)
+    rubric_key = f"rubric_{problem_pdf.name}"  # 문제 파일 이름으로 고유 키 생성
 
-    st.subheader("📜 추출된 문제 내용")
+    st.subheader("📜 문제 내용")
     st.write(problem_text)
 
+    # 채점 기준 생성
     if generate_rubric_btn:
-        with st.spinner("GPT가 채점 기준을 작성 중입니다..."):
-            rubric = generate_initial_rubric(problem_text)
+        if rubric_key not in st.session_state:
+            prompt = f"""다음 문제에 대한 채점 기준을 작성해 주세요:
+문제: {problem_text}
+- 항목별로 '채점 항목 | 배점 | 세부 기준' 형태로 작성해 주세요.
+- 표 아래에 배점 합계도 적어주세요."""
+            with st.spinner("GPT가 채점 기준을 생성 중입니다..."):
+                rubric = rubric_conversation.predict(input=prompt)
+                st.session_state[rubric_key] = rubric
+            st.success("✅ 채점 기준 생성 완료")
+        else:
+            st.info("기존 채점 기준이 이미 존재합니다.")
+        st.subheader("📊 채점 기준")
+        st.write(st.session_state[rubric_key])
 
-        st.success("채점 기준 생성 완료!")
-        st.subheader("📊 생성된 채점 기준")
-        st.write(rubric)
-
-        st.session_state.rubric = rubric
-
-
+# 무작위 학생 채점 실행
 if answers_pdfs and single_random_grade_btn:
-    if 'rubric' not in st.session_state:
-        st.warning("먼저 채점 기준을 생성해 주세요.")
+    if problem_pdf is None:
+        st.warning("문제 PDF를 먼저 업로드하세요.")
     else:
-        all_answers = []
-        student_info_list = []
+        rubric_key = f"rubric_{problem_pdf.name}"
+        if rubric_key not in st.session_state:
+            st.warning("채점 기준을 먼저 생성하세요.")
+        else:
+            all_answers = []
+            student_info_list = []
+            for pdf_file in answers_pdfs:
+                pdf_text = extract_text_from_pdf(pdf_file)
+                answers, info_list = extract_answers_and_info(pdf_text)
+                all_answers.extend(answers)
+                student_info_list.extend(info_list)
 
-        st.subheader("📜 학생 답안 추출 중...")
-        for pdf_file in answers_pdfs:
-            pdf_text = extract_text_from_pdf(pdf_file)
-            answers, info_list = extract_answers_and_info(pdf_text)
+            if not all_answers:
+                st.warning("학생 답안을 찾을 수 없습니다.")
+            else:
+                random_index = random.randint(0, len(all_answers) - 1)
+                random_answer = all_answers[random_index]
+                selected_student = student_info_list[random_index]
 
-            for i, ans in enumerate(answers):
-                name = info_list[i]['name']
-                sid = info_list[i]['id']
-                all_answers.append(ans)
-                student_info_list.append({'name': name, 'id': sid})
+                st.info(f"채점할 학생: {selected_student['name']} ({selected_student['id']})")
 
-        st.write(f"총 {len(all_answers)}명의 답안이 추출되었습니다.")
+                prompt = f"""다음은 채점 기준입니다:
+{st.session_state[rubric_key]}
 
-        random_index = random.randint(0, len(all_answers) - 1)
-        random_answer = all_answers[random_index]
-        selected_student = student_info_list[random_index]
+그리고 아래는 학생 답안입니다:
+{random_answer}
 
-        st.info(f"이번에 채점할 학생: 이름 - {selected_student['name']}, 학번 - {selected_student['id']}")
+이 기준에 따라 채점 표를 작성해 주세요:
+| 채점 항목 | 배점 | GPT 추천 점수 | 세부 평가 |
+표 아래에 총점과 간단한 피드백도 작성해주세요."""
 
-        with st.spinner("무작위 학생 답안을 채점 중입니다..."):
-            grading_result = grade_student_answer(st.session_state.rubric, random_answer)
+                with st.spinner("GPT가 채점 중입니다..."):
+                    grading_result = rubric_conversation.predict(input=prompt)
 
-        st.success("✅ GPT 추천 채점 결과:")
-        st.write(grading_result)
+                st.success("✅ 채점 완료")
+                st.subheader("📋 GPT 채점 결과")
+                st.write(grading_result)
+
+# 교수자 피드백 입력 및 기준 수정
+if update_rubric_btn:
+    if problem_pdf is None:
+        st.warning("문제 PDF가 필요합니다.")
+    else:
+        rubric_key = f"rubric_{problem_pdf.name}"
+        if rubric_key not in st.session_state:
+            st.warning("채점 기준을 먼저 생성해주세요.")
+        else:
+            st.subheader("📝 교수자 피드백 입력")
+            feedback_text = st.text_area("피드백을 입력하세요 (예: 이 항목을 더 강조해주세요)")
+
+            if feedback_text.strip():
+                current_rubric = st.session_state[rubric_key]
+                prompt = f"""다음은 기존 채점 기준입니다:
+{current_rubric}
+
+아래는 교수자의 피드백입니다:
+{feedback_text}
+
+이 피드백을 반영해서 채점 기준을 수정해 주세요.
+- 형식은 '채점 항목 | 배점 | 세부 기준' 표 형식으로 유지해주세요."""
+
+                with st.spinner("GPT가 기준을 수정 중입니다..."):
+                    updated_rubric = rubric_conversation.predict(input=prompt)
+                    st.session_state[rubric_key] = updated_rubric
+
+                st.success("✅ 채점 기준 수정 완료")
+                st.subheader("🆕 수정된 채점 기준")
+                st.write(updated_rubric)
+            else:
+                st.warning("피드백을 입력하세요.")
