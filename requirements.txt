@@ -1,7 +1,8 @@
+langchain>=0.1.14
+langchain-core>=0.1.31
+langchain-community>=0.0.21
+openai>=1.0.0
+tiktoken
 streamlit
 PyPDF2
-openai>=1.0.0
-langchain>=0.1.14
-langchain-community>=0.0.21
-tiktoken
 
