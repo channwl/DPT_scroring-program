@@ -2,6 +2,6 @@ streamlit
 PyPDF2
 pandas
 openai
-langgraph
+langgraph>=0.0.30
 typing-extensions
 
