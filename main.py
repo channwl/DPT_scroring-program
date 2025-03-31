@@ -7,23 +7,25 @@ from langchain.chains import LLMChain
 from langchain.memory import ConversationSummaryMemory
 from langchain_core.prompts import PromptTemplate
 
-# GPT-4o 모델을 LangChain에 연결
+# GPT-4o 연결
 llm = ChatOpenAI(
     openai_api_key=st.secrets["openai"]["API_KEY"],
     model_name="gpt-4o",
     temperature=0
 )
 
-# 채점 기준 생성 및 수정 시 사용하는 Memory 초기화
+# LangChain Memory 설정 (기억 기능)
 if "rubric_memory" not in st.session_state:
     st.session_state.rubric_memory = ConversationSummaryMemory(
         llm=llm,
-        memory_key="chat_history",
+        memory_key="history",  # ✅ 최신 구조에 맞게 수정
         return_messages=True
     )
 
-# 최신 방식으로 GPT 체인 구성 (ConversationChain 대신 LLMChain 사용)
-prompt_template = PromptTemplate.from_template("{input}")
+# PromptTemplate 설정 (memory를 포함한 템플릿)
+prompt_template = PromptTemplate.from_template("{history}\n{input}")
+
+# LLMChain 구성 (GPT 모델 + 프롬프트 + 메모리 연결)
 rubric_chain = LLMChain(
     llm=llm,
     prompt=prompt_template,
@@ -72,7 +74,7 @@ with st.sidebar:
     single_random_grade_btn = st.button("✅ 2단계: 무작위 학생 채점")
     update_rubric_btn = st.button("✅ 3단계: 교수자 피드백 반영")
 
-# 1단계: 문제 기반 채점 기준 생성
+# 1단계: 채점 기준 생성
 if problem_pdf:
     problem_text = extract_text_from_pdf(problem_pdf)
     rubric_key = f"rubric_{problem_pdf.name}"
@@ -87,8 +89,8 @@ if problem_pdf:
 - 항목별로 '채점 항목 | 배점 | 세부 기준' 형태로 작성해 주세요.
 - 표 아래에 배점 합계도 적어주세요."""
             with st.spinner("GPT가 채점 기준을 생성 중입니다..."):
-                rubric = rubric_chain.run(input=prompt)
-                st.session_state[rubric_key] = rubric
+                rubric = rubric_chain.invoke({"input": prompt})  # ✅ .invoke 사용
+                st.session_state[rubric_key] = rubric['text']
             st.success("✅ 채점 기준 생성 완료")
         else:
             st.info("기존 채점 기준이 이미 존재합니다.")
@@ -133,13 +135,13 @@ if answers_pdfs and single_random_grade_btn:
 표 아래에 총점과 간단한 피드백도 작성해주세요."""
 
                 with st.spinner("GPT가 채점 중입니다..."):
-                    grading_result = rubric_chain.run(input=prompt)
+                    grading_result = rubric_chain.invoke({"input": prompt})  # ✅ invoke 사용
 
                 st.success("✅ 채점 완료")
                 st.subheader("📋 GPT 채점 결과")
-                st.write(grading_result)
+                st.write(grading_result['text'])
 
-# 3단계: 교수자 피드백 기반 채점 기준 수정
+# 3단계: 교수자 피드백 반영
 if update_rubric_btn:
     if problem_pdf is None:
         st.warning("문제 PDF가 필요합니다.")
@@ -163,11 +165,11 @@ if update_rubric_btn:
 - 형식은 '채점 항목 | 배점 | 세부 기준' 표 형식으로 유지해주세요."""
 
                 with st.spinner("GPT가 기준을 수정 중입니다..."):
-                    updated_rubric = rubric_chain.run(input=prompt)
-                    st.session_state[rubric_key] = updated_rubric
+                    updated_rubric = rubric_chain.invoke({"input": prompt})  # ✅ invoke 사용
+                    st.session_state[rubric_key] = updated_rubric['text']
 
                 st.success("✅ 채점 기준 수정 완료")
                 st.subheader("🆕 수정된 채점 기준")
-                st.write(updated_rubric)
+                st.write(updated_rubric['text'])
             else:
                 st.warning("피드백을 입력하세요.")
