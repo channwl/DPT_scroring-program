@@ -79,6 +79,7 @@ st.markdown(f"### 현재 단계: STEP {st.session_state.step}")
 # STEP 1
 if st.session_state.step == 1:
     problem_pdf = st.file_uploader("📄 문제 PDF 업로드", type="pdf", key="problem_upload")
+
     if problem_pdf:
         st.session_state.problem_pdf = problem_pdf
         st.session_state.problem_filename = problem_pdf.name
@@ -88,23 +89,30 @@ if st.session_state.step == 1:
         st.subheader("📃 문제 내용")
         st.write(text)
 
-        prompt = f"""다음 문제에 대한 채점 기준을 작성해 주세요. 반드시 한글로 작성해주세요:
+        prompt = f"""다음 문제에 대한 채점 기준을 작성해 주세요 (반드시 **한글**로 작성):
+
 문제: {text}
-- '채점 항목 | 배점 | 세부 기준' 형태로 표 작성
-- 배점 합계 포함"""
+
+요구사항:
+- 표 형식으로 작성해주세요 (예: '채점 항목 | 배점 | 세부 기준')
+- 각 항목의 세부 기준은 구체적으로 작성해주세요
+- 설명은 반드시 **한글**로 작성해야 하며, 영어 혼용 없이 작성해주세요
+- 표 아래에 **배점 총합**도 함께 작성해주세요
+"""
 
         if rubric_key not in st.session_state:
-            st.session_state[rubric_key] = ""
+            st.warning("채점 기준이 아직 생성되지 않았습니다. 먼저 아래 버튼을 클릭하세요.")
 
-        if st.button("📐 채점 기준 생성"):
+        if st.button("📐 채점 기준 생성 또는 갱신"):
             with st.spinner("GPT가 채점 기준을 생성 중입니다..."):
                 result = rubric_chain.invoke({"input": prompt})
                 st.session_state[rubric_key] = result["text"]
                 st.success("✅ 채점 기준 생성 완료")
 
-        if rubric_key in st.session_state and st.session_state[rubric_key]:
+        if rubric_key in st.session_state:
             st.subheader("📊 채점 기준")
             st.write(st.session_state[rubric_key])
+
 
 # STEP 2
 elif st.session_state.step == 2:
