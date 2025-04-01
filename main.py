@@ -69,9 +69,31 @@ def extract_text_from_pdf(pdf_data):
     return "".join([page.extract_text() or "" for page in reader.pages])
 
 def extract_info_from_filename(filename):
-    id_match = re.search(r"\d{8}", filename)
-    name_match = re.findall(r"[가-힣]{2,4}", filename)
-    return name_match[-1] if name_match else "UnknownName", id_match.group() if id_match else "UnknownID"
+    """
+    다양한 파일명 형식에서 학생 이름과 학번을 추출합니다.
+    """
+    # 확장자 제거
+    base_filename = os.path.splitext(filename)[0]
+    
+    # 학번 찾기 (일반적으로 6-10자리 숫자)
+    id_match = re.search(r'\d{6,10}', base_filename)
+    student_id = id_match.group() if id_match else "UnknownID"
+    
+    # 한글 이름 찾기 (2-5자 한글)
+    name_matches = re.findall(r'[가-힣]{2,5}', base_filename)
+    
+    # 이름으로 볼 수 없는 일반적인 단어들
+    common_words = ["기말", "중간", "과제", "시험", "수업", "수업명", "레포트", "제출", "답안"]
+    
+    # 추출된 한글 중에서 일반 단어가 아닌 것을 이름으로 간주
+    student_name = "UnknownName"
+    if name_matches:
+        for name in name_matches:
+            if name not in common_words:
+                student_name = name
+                break
+    
+    return student_name, student_id
 
 def process_student_pdfs(pdf_files):
     """학생 PDF 파일들을 처리하고 텍스트와 정보를 세션에 저장"""
