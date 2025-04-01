@@ -3,6 +3,7 @@ import PyPDF2
 import random
 import re
 import io
+import base64
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.memory import ConversationSummaryMemory
@@ -17,6 +18,7 @@ llm = ChatOpenAI(
     temperature=0
 )
 
+# 세션 상태 초기화
 if "rubric_memory" not in st.session_state:
     st.session_state.rubric_memory = ConversationSummaryMemory(
         llm=llm,
@@ -30,6 +32,27 @@ if "step" not in st.session_state:
 if "generated_rubrics" not in st.session_state:
     st.session_state.generated_rubrics = {}  # 생성된 채점 기준을 저장할 딕셔너리
 
+if "problem_text" not in st.session_state:
+    st.session_state.problem_text = None
+
+if "problem_filename" not in st.session_state:
+    st.session_state.problem_filename = None
+
+if "student_answers_data" not in st.session_state:
+    st.session_state.student_answers_data = []  # 학생 답안 데이터 저장용
+
+if "feedback_text" not in st.session_state:
+    st.session_state.feedback_text = ""
+
+if "modified_rubrics" not in st.session_state:
+    st.session_state.modified_rubrics = {}
+
+if "last_grading_result" not in st.session_state:
+    st.session_state.last_grading_result = None
+
+if "last_selected_student" not in st.session_state:
+    st.session_state.last_selected_student = None
+
 prompt_template = PromptTemplate.from_template("{history}\n{input}")
 rubric_chain = LLMChain(
     llm=llm,
@@ -38,8 +61,11 @@ rubric_chain = LLMChain(
 )
 
 # 유틸 함수들
-def extract_text_from_pdf(pdf_file):
-    reader = PyPDF2.PdfReader(io.BytesIO(pdf_file.read()))
+def extract_text_from_pdf(pdf_data):
+    if isinstance(pdf_data, bytes):
+        reader = PyPDF2.PdfReader(io.BytesIO(pdf_data))
+    else:
+        reader = PyPDF2.PdfReader(io.BytesIO(pdf_data.read()))
     return "".join([page.extract_text() or "" for page in reader.pages])
 
 def extract_info_from_filename(filename):
@@ -47,15 +73,19 @@ def extract_info_from_filename(filename):
     name_match = re.findall(r"[가-힣]{2,4}", filename)
     return name_match[-1] if name_match else "UnknownName", id_match.group() if id_match else "UnknownID"
 
-def extract_answers_and_info_from_files(pdf_files):
+def process_student_pdfs(pdf_files):
+    """학생 PDF 파일들을 처리하고 텍스트와 정보를 세션에 저장"""
     answers, info = [], []
     for file in pdf_files:
         file.seek(0)
-        text = extract_text_from_pdf(file)
+        file_bytes = file.read()
+        text = extract_text_from_pdf(io.BytesIO(file_bytes))
         name, sid = extract_info_from_filename(file.name)
         if len(text.strip()) > 20:
             answers.append(text)
-            info.append({'name': name, 'id': sid})
+            info.append({'name': name, 'id': sid, 'text': text})
+    
+    st.session_state.student_answers_data = info
     return answers, info
 
 # 사이드바
@@ -70,7 +100,9 @@ with st.sidebar:
         st.session_state.step = 3
 
     st.markdown("### 📝 교수자 피드백", unsafe_allow_html=True)
-    st.session_state.feedback_text = st.text_area("채점 기준 수정 피드백", key="sidebar_feedback")
+    feedback = st.text_area("채점 기준 수정 피드백", value=st.session_state.feedback_text, key="sidebar_feedback")
+    # 피드백 텍스트 업데이트
+    st.session_state.feedback_text = feedback
 
     st.markdown("---")
     st.caption("🚀 본 시스템은 **DPT 팀**이 개발한 교수자 지원 도구입니다.")
@@ -84,9 +116,13 @@ if st.session_state.step == 1:
     problem_pdf = st.file_uploader("📄 문제 PDF 업로드", type="pdf", key="problem_upload")
 
     if problem_pdf:
-        st.session_state.problem_pdf = problem_pdf
+        # PDF 파일을 업로드하면 내용과 파일명을 세션 상태에 저장
+        file_bytes = problem_pdf.read()
+        st.session_state.problem_pdf_bytes = file_bytes
         st.session_state.problem_filename = problem_pdf.name
-        text = extract_text_from_pdf(problem_pdf)
+        text = extract_text_from_pdf(io.BytesIO(file_bytes))
+        st.session_state.problem_text = text
+        
         rubric_key = f"rubric_{problem_pdf.name}"
 
         st.subheader("📃 문제 내용")
@@ -124,8 +160,7 @@ if st.session_state.step == 1:
                     st.success("✅ 채점 기준 생성 완료")
         else:
             if st.button("📐 채점 기준 재생성"):
-                st.warning("⚠️ 이미 생성된 채점 기준이 있습니다. 재생성하시겠습니까?")
-                confirm = st.button("확인", key="confirm_regenerate")
+                confirm = st.checkbox("⚠️ 이미 생성된 채점 기준이 있습니다. 재생성하시겠습니까?")
                 if confirm:
                     # 여기서는 명시적으로 사용자가 재생성을 원할 때만 처리
                     prompt = f"""다음 문제에 대한 채점 기준을 작성해 주세요 (반드시 **한글**로 작성):
@@ -161,22 +196,32 @@ if st.session_state.step == 1:
 
 # STEP 2
 elif st.session_state.step == 2:
-    student_pdfs = st.file_uploader("📥 학생 답안 PDF 업로드 (여러 개)", type="pdf", accept_multiple_files=True, key="student_answers")
-    if st.session_state.get("problem_pdf") and student_pdfs:
+    # 문제가 이미 업로드되었는지 확인
+    if st.session_state.problem_text and st.session_state.problem_filename:
+        st.subheader("📃 문제 내용")
+        st.write(st.session_state.problem_text)
+        
         rubric_key = f"rubric_{st.session_state.problem_filename}"
-        if rubric_key not in st.session_state.generated_rubrics:
-            st.warning("채점 기준이 없습니다. STEP 1에서 먼저 채점 기준을 생성해주세요.")
-        else:
-            if st.button("🎯 무작위 채점 실행"):
-                all_answers, info_list = extract_answers_and_info_from_files(student_pdfs)
-                if not all_answers:
-                    st.warning("답안을 찾을 수 없습니다.")
-                else:
-                    idx = random.randint(0, len(all_answers) - 1)
-                    selected_student = info_list[idx]
-                    answer = all_answers[idx]
+        if rubric_key in st.session_state.generated_rubrics:
+            st.subheader("📊 채점 기준")
+            st.markdown(st.session_state.generated_rubrics[rubric_key])
+        
+        student_pdfs = st.file_uploader("📥 학생 답안 PDF 업로드 (여러 개)", type="pdf", accept_multiple_files=True, key="student_answers")
+        
+        if student_pdfs:
+            if rubric_key not in st.session_state.generated_rubrics:
+                st.warning("채점 기준이 없습니다. STEP 1에서 먼저 채점 기준을 생성해주세요.")
+            else:
+                if st.button("🎯 무작위 채점 실행"):
+                    all_answers, info_list = process_student_pdfs(student_pdfs)
+                    if not all_answers:
+                        st.warning("답안을 찾을 수 없습니다.")
+                    else:
+                        idx = random.randint(0, len(all_answers) - 1)
+                        selected_student = info_list[idx]
+                        answer = all_answers[idx]
 
-                    prompt = f"""다음은 채점 기준입니다:
+                        prompt = f"""다음은 채점 기준입니다:
 {st.session_state.generated_rubrics[rubric_key]}
 
 그리고 아래는 학생 답안입니다:
@@ -191,33 +236,45 @@ elif st.session_state.step == 2:
 
 표 아래에 총점과 간단한 피드백도 작성해주세요."""
 
-                    with st.spinner("GPT가 채점 중입니다..."):
-                        # 채점에는 메모리가 필요하지 않으므로 별도 체인을 만들어 사용
-                        grading_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
-                        result = grading_chain.invoke({"input": prompt})
-                        st.session_state.last_grading_result = result["text"]
-                        st.session_state.last_selected_student = selected_student
-                        st.success("✅ 채점 완료")
+                        with st.spinner("GPT가 채점 중입니다..."):
+                            # 채점에는 메모리가 필요하지 않으므로 별도 체인을 만들어 사용
+                            grading_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
+                            result = grading_chain.invoke({"input": prompt})
+                            st.session_state.last_grading_result = result["text"]
+                            st.session_state.last_selected_student = selected_student
+                            st.success("✅ 채점 완료")
+    else:
+        st.warning("먼저 STEP 1에서 문제를 업로드해주세요.")
+        if st.button("STEP 1로 이동"):
+            st.session_state.step = 1
 
-    if st.session_state.get("last_grading_result"):
-        stu = st.session_state["last_selected_student"]
+    # 채점 결과 표시
+    if st.session_state.last_grading_result and st.session_state.last_selected_student:
+        stu = st.session_state.last_selected_student
         st.subheader(f"📋 채점 결과 - {stu['name']} ({stu['id']})")
-        st.markdown(st.session_state["last_grading_result"])
+        st.markdown(st.session_state.last_grading_result)
 
 # STEP 3
 elif st.session_state.step == 3:
-    if st.session_state.get("problem_pdf"):
+    # 문제가 이미 업로드되었는지 확인
+    if st.session_state.problem_text and st.session_state.problem_filename:
         rubric_key = f"rubric_{st.session_state.problem_filename}"
-        feedback = st.session_state.get("feedback_text", "")
         
         if rubric_key not in st.session_state.generated_rubrics:
             st.warning("채점 기준이 없습니다. STEP 1에서 먼저 채점 기준을 생성해주세요.")
-        elif st.button("♻️ 피드백 반영"):
-            # 원본 채점 기준 보존을 위해 수정된 채점 기준은 별도 키에 저장
-            if "modified_rubrics" not in st.session_state:
-                st.session_state.modified_rubrics = {}
+            if st.button("STEP 1로 이동"):
+                st.session_state.step = 1
+        else:
+            # 원본 채점 기준 표시
+            st.subheader("📊 원본 채점 기준")
+            st.markdown(st.session_state.generated_rubrics[rubric_key])
             
-            prompt = f"""기존 채점 기준:
+            if st.button("♻️ 피드백 반영"):
+                feedback = st.session_state.feedback_text
+                if not feedback.strip():
+                    st.warning("피드백을 입력해주세요.")
+                else:
+                    prompt = f"""기존 채점 기준:
 {st.session_state.generated_rubrics[rubric_key]}
 
 피드백:
@@ -230,20 +287,19 @@ elif st.session_state.step == 3:
 | 항목 1 | 5점 | 세부 기준 설명 |
 
 (반드시 각 행 시작과 끝에 |를 사용하고, 헤더 행 아래에 |---|---|---| 형식의 구분선을 사용하세요)"""
-            
-            with st.spinner("GPT가 기준을 수정 중입니다..."):
-                # 피드백 반영에도 별도 체인 사용
-                feedback_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
-                updated = feedback_chain.invoke({"input": prompt})
-                st.session_state.modified_rubrics[rubric_key] = updated["text"]
-                st.success("✅ 채점 기준 수정 완료")
-
-        # 원본 채점 기준 표시
-        if rubric_key in st.session_state.generated_rubrics:
-            st.subheader("📊 원본 채점 기준")
-            st.markdown(st.session_state.generated_rubrics[rubric_key])
-            
+                
+                    with st.spinner("GPT가 기준을 수정 중입니다..."):
+                        # 피드백 반영에도 별도 체인 사용
+                        feedback_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
+                        updated = feedback_chain.invoke({"input": prompt})
+                        st.session_state.modified_rubrics[rubric_key] = updated["text"]
+                        st.success("✅ 채점 기준 수정 완료")
+                
             # 수정된 채점 기준이 있으면 표시
-            if "modified_rubrics" in st.session_state and rubric_key in st.session_state.modified_rubrics:
+            if rubric_key in st.session_state.modified_rubrics:
                 st.subheader("🆕 수정된 채점 기준")
                 st.markdown(st.session_state.modified_rubrics[rubric_key])
+    else:
+        st.warning("먼저 STEP 1에서 문제를 업로드해주세요.")
+        if st.button("STEP 1로 이동"):
+            st.session_state.step = 1
