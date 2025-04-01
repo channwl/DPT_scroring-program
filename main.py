@@ -99,10 +99,19 @@ if st.session_state.step == 1:
 문제: {text}
 
 요구사항:
-- 표 형식으로 작성해주세요 (예: '채점 항목 | 배점 | 세부 기준')
-- 각 항목의 세부 기준은 구체적으로 작성해주세요
-- 설명은 반드시 **한글**로 작성해야 하며, 영어 혼용 없이 작성해주세요
-- 표 아래에 **배점 총합**도 함께 작성해주세요
+1. 표 형식으로 작성해주세요 (정확히 '| 채점 항목 | 배점 | 세부 기준 |' 형식의 마크다운 표를 사용하세요)
+2. 각 항목의 세부 기준은 구체적으로 작성해주세요
+3. 설명은 반드시 **한글**로 작성해야 하며, 영어 혼용 없이 작성해주세요
+4. 표 아래에 **배점 총합**도 함께 작성해주세요
+5. 반드시 마크다운 표 문법을 정확히 사용하십시오 (각 행 시작과 끝에 |, 헤더 행 아래에 |---|---|---| 형식의 구분선)
+
+예시 형식:
+| 채점 항목 | 배점 | 세부 기준 |
+|---------|-----|---------|
+| 항목 1 | 5점 | 세부 기준 설명 |
+| 항목 2 | 10점 | 세부 기준 설명 |
+
+**배점 총합: 15점**
 """
             if st.button("📐 채점 기준 생성"):
                 # 메모리 초기화하여 이전 대화가 영향을 주지 않도록 함
@@ -124,10 +133,19 @@ if st.session_state.step == 1:
 문제: {text}
 
 요구사항:
-- 표 형식으로 작성해주세요 (예: '채점 항목 | 배점 | 세부 기준')
-- 각 항목의 세부 기준은 구체적으로 작성해주세요
-- 설명은 반드시 **한글**로 작성해야 하며, 영어 혼용 없이 작성해주세요
-- 표 아래에 **배점 총합**도 함께 작성해주세요
+1. 표 형식으로 작성해주세요 (정확히 '| 채점 항목 | 배점 | 세부 기준 |' 형식의 마크다운 표를 사용하세요)
+2. 각 항목의 세부 기준은 구체적으로 작성해주세요
+3. 설명은 반드시 **한글**로 작성해야 하며, 영어 혼용 없이 작성해주세요
+4. 표 아래에 **배점 총합**도 함께 작성해주세요
+5. 반드시 마크다운 표 문법을 정확히 사용하십시오 (각 행 시작과 끝에 |, 헤더 행 아래에 |---|---|---| 형식의 구분선)
+
+예시 형식:
+| 채점 항목 | 배점 | 세부 기준 |
+|---------|-----|---------|
+| 항목 1 | 5점 | 세부 기준 설명 |
+| 항목 2 | 10점 | 세부 기준 설명 |
+
+**배점 총합: 15점**
 """
                     st.session_state.rubric_memory.clear()
                     with st.spinner("GPT가 채점 기준을 재생성 중입니다..."):
@@ -138,7 +156,7 @@ if st.session_state.step == 1:
         # 채점 기준 표시
         if rubric_key in st.session_state.generated_rubrics:
             st.subheader("📊 채점 기준")
-            st.write(st.session_state.generated_rubrics[rubric_key])
+            st.markdown(st.session_state.generated_rubrics[rubric_key])
 
 
 # STEP 2
@@ -165,7 +183,12 @@ elif st.session_state.step == 2:
 {answer}
 
 이 기준에 따라 채점 표를 작성해 주세요:
+반드시 다음과 같은 정확한 마크다운 표 형식을 사용하세요:
+
 | 채점 항목 | 배점 | GPT 추천 점수 | 세부 평가 |
+|---------|-----|------------|---------|
+| 항목 1 | 5점 | 4점 | 평가 내용 |
+
 표 아래에 총점과 간단한 피드백도 작성해주세요."""
 
                     with st.spinner("GPT가 채점 중입니다..."):
@@ -179,7 +202,7 @@ elif st.session_state.step == 2:
     if st.session_state.get("last_grading_result"):
         stu = st.session_state["last_selected_student"]
         st.subheader(f"📋 채점 결과 - {stu['name']} ({stu['id']})")
-        st.write(st.session_state["last_grading_result"])
+        st.markdown(st.session_state["last_grading_result"])
 
 # STEP 3
 elif st.session_state.step == 3:
@@ -200,7 +223,13 @@ elif st.session_state.step == 3:
 피드백:
 {feedback}
 
-피드백을 반영한 채점 기준을 '채점 항목 | 배점 | 세부 기준' 형식의 표로 다시 작성해주세요."""
+피드백을 반영한 채점 기준을 다음과 같은 정확한 마크다운 표 형식으로 다시 작성해주세요:
+
+| 채점 항목 | 배점 | 세부 기준 |
+|---------|-----|---------|
+| 항목 1 | 5점 | 세부 기준 설명 |
+
+(반드시 각 행 시작과 끝에 |를 사용하고, 헤더 행 아래에 |---|---|---| 형식의 구분선을 사용하세요)"""
             
             with st.spinner("GPT가 기준을 수정 중입니다..."):
                 # 피드백 반영에도 별도 체인 사용
@@ -212,9 +241,9 @@ elif st.session_state.step == 3:
         # 원본 채점 기준 표시
         if rubric_key in st.session_state.generated_rubrics:
             st.subheader("📊 원본 채점 기준")
-            st.write(st.session_state.generated_rubrics[rubric_key])
+            st.markdown(st.session_state.generated_rubrics[rubric_key])
             
             # 수정된 채점 기준이 있으면 표시
             if "modified_rubrics" in st.session_state and rubric_key in st.session_state.modified_rubrics:
                 st.subheader("🆕 수정된 채점 기준")
-                st.write(st.session_state.modified_rubrics[rubric_key])
+                st.markdown(st.session_state.modified_rubrics[rubric_key])
