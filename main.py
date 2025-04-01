@@ -3,7 +3,7 @@ import PyPDF2
 import random
 import re
 import io
-import os  # ✅ 추가
+import os
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.memory import ConversationSummaryMemory
@@ -18,7 +18,7 @@ llm = ChatOpenAI(
     temperature=0
 )
 
-# ✅ 세션 상태 초기화 함수
+#세션 상태 초기화 함수
 def initialize_session_state():
     defaults = {
         "rubric_memory": ConversationSummaryMemory(
