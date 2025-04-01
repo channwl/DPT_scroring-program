@@ -32,9 +32,7 @@ rubric_chain = LLMChain(
     memory=st.session_state.rubric_memory
 )
 
-# ----------------------------
-# 사용자 친화적 파일 업로드
-# ----------------------------
+# 사용자 친화적 파일 업로더
 def styled_file_uploader(label, key, type):
     st.markdown(f"""<div style='padding: 10px 0 5px 0; font-weight: bold;'>{label}</div>""", unsafe_allow_html=True)
     return st.file_uploader("", key=key, type=type, label_visibility="collapsed")
@@ -61,9 +59,7 @@ def extract_answers_and_info_from_files(pdf_files):
             student_info.append({'name': name, 'id': sid})
     return answers, student_info
 
-# ----------------------------
-# 사이드바 구성
-# ----------------------------
+# 사이드바
 with st.sidebar:
     st.title("📘 채점 흐름 가이드")
     st.markdown("1️⃣ 문제 업로드 및 채점 기준")
@@ -78,9 +74,7 @@ with st.sidebar:
     st.caption("🚀 본 서비스는 **DPT 팀**이 개발한 교수자 지원 도구입니다.")
     st.caption("채점 기준 수립과 일관된 채점을 돕기 위해 설계되었습니다.")
 
-# ----------------------------
-# STEP 1: 문제 업로드 및 채점 기준 생성
-# ----------------------------
+# STEP 1: 문제 업로드 및 채점 기준
 with st.expander("📌 STEP 1: 문제 업로드 및 채점 기준 생성", expanded=True):
     uploaded_problem = styled_file_uploader("📄 문제 PDF 업로드", "upload_problem", ["pdf"])
 
@@ -108,15 +102,11 @@ with st.expander("📌 STEP 1: 문제 업로드 및 채점 기준 생성", expan
             st.subheader("📊 생성된 채점 기준")
             st.write(st.session_state[rubric_key])
 
-# ----------------------------
-# STEP 2: 답안 업로드 및 무작위 채점
-# ----------------------------
+# STEP 2: 무작위 채점
 with st.expander("🎯 STEP 2: 무작위 학생 채점 결과", expanded=True):
     answers_pdfs = styled_file_uploader("📥 답안 PDF 업로드 (복수 가능)", "upload_answers", ["pdf"])
 
-    if "problem_pdf" not in st.session_state:
-        st.info("STEP 1에서 문제 PDF를 먼저 업로드해주세요.")
-    elif answers_pdfs:
+    if st.session_state.get("problem_pdf") and answers_pdfs:
         rubric_key = f"rubric_{st.session_state.problem_filename}"
 
         if rubric_key not in st.session_state:
@@ -148,18 +138,15 @@ with st.expander("🎯 STEP 2: 무작위 학생 채점 결과", expanded=True):
 
                     st.success("✅ 채점 완료")
 
-    if "last_grading_result" in st.session_state:
+    # 안전하게 결과 표시
+    if st.session_state.get("last_grading_result") and st.session_state.get("last_selected_student"):
         student = st.session_state["last_selected_student"]
         st.subheader(f"📋 최근 채점 결과 - {student['name']} ({student['id']})")
         st.write(st.session_state["last_grading_result"])
 
-# ----------------------------
-# STEP 3: 피드백 반영 및 수정
-# ----------------------------
+# STEP 3: 피드백 반영
 with st.expander("♻️ STEP 3: 교수자 피드백 반영 및 기준 수정", expanded=True):
-    if "problem_pdf" not in st.session_state:
-        st.info("STEP 1에서 문제 PDF를 먼저 업로드해주세요.")
-    else:
+    if st.session_state.get("problem_pdf"):
         rubric_key = f"rubric_{st.session_state.problem_filename}"
 
         if rubric_key not in st.session_state:
