@@ -27,6 +27,9 @@ if "rubric_memory" not in st.session_state:
 if "step" not in st.session_state:
     st.session_state.step = 1
 
+if "generated_rubrics" not in st.session_state:
+    st.session_state.generated_rubrics = {}  # 생성된 채점 기준을 저장할 딕셔너리
+
 prompt_template = PromptTemplate.from_template("{history}\n{input}")
 rubric_chain = LLMChain(
     llm=llm,
@@ -89,7 +92,9 @@ if st.session_state.step == 1:
         st.subheader("📃 문제 내용")
         st.write(text)
 
-        prompt = f"""다음 문제에 대한 채점 기준을 작성해 주세요 (반드시 **한글**로 작성):
+        # 이미 생성된 채점 기준이 있는지 확인
+        if rubric_key not in st.session_state.generated_rubrics:
+            prompt = f"""다음 문제에 대한 채점 기준을 작성해 주세요 (반드시 **한글**로 작성):
 
 문제: {text}
 
@@ -99,19 +104,41 @@ if st.session_state.step == 1:
 - 설명은 반드시 **한글**로 작성해야 하며, 영어 혼용 없이 작성해주세요
 - 표 아래에 **배점 총합**도 함께 작성해주세요
 """
+            if st.button("📐 채점 기준 생성"):
+                # 메모리 초기화하여 이전 대화가 영향을 주지 않도록 함
+                st.session_state.rubric_memory.clear()
+                
+                with st.spinner("GPT가 채점 기준을 생성 중입니다..."):
+                    result = rubric_chain.invoke({"input": prompt})
+                    # 생성된 채점 기준을 별도 딕셔너리에 저장
+                    st.session_state.generated_rubrics[rubric_key] = result["text"]
+                    st.success("✅ 채점 기준 생성 완료")
+        else:
+            if st.button("📐 채점 기준 재생성"):
+                st.warning("⚠️ 이미 생성된 채점 기준이 있습니다. 재생성하시겠습니까?")
+                confirm = st.button("확인", key="confirm_regenerate")
+                if confirm:
+                    # 여기서는 명시적으로 사용자가 재생성을 원할 때만 처리
+                    prompt = f"""다음 문제에 대한 채점 기준을 작성해 주세요 (반드시 **한글**로 작성):
 
-        if rubric_key not in st.session_state:
-            st.warning("채점 기준이 아직 생성되지 않았습니다. 먼저 아래 버튼을 클릭하세요.")
+문제: {text}
 
-        if st.button("📐 채점 기준 생성 또는 갱신"):
-            with st.spinner("GPT가 채점 기준을 생성 중입니다..."):
-                result = rubric_chain.invoke({"input": prompt})
-                st.session_state[rubric_key] = result["text"]
-                st.success("✅ 채점 기준 생성 완료")
+요구사항:
+- 표 형식으로 작성해주세요 (예: '채점 항목 | 배점 | 세부 기준')
+- 각 항목의 세부 기준은 구체적으로 작성해주세요
+- 설명은 반드시 **한글**로 작성해야 하며, 영어 혼용 없이 작성해주세요
+- 표 아래에 **배점 총합**도 함께 작성해주세요
+"""
+                    st.session_state.rubric_memory.clear()
+                    with st.spinner("GPT가 채점 기준을 재생성 중입니다..."):
+                        result = rubric_chain.invoke({"input": prompt})
+                        st.session_state.generated_rubrics[rubric_key] = result["text"]
+                        st.success("✅ 채점 기준 재생성 완료")
 
-        if rubric_key in st.session_state:
+        # 채점 기준 표시
+        if rubric_key in st.session_state.generated_rubrics:
             st.subheader("📊 채점 기준")
-            st.write(st.session_state[rubric_key])
+            st.write(st.session_state.generated_rubrics[rubric_key])
 
 
 # STEP 2
@@ -119,8 +146,8 @@ elif st.session_state.step == 2:
     student_pdfs = st.file_uploader("📥 학생 답안 PDF 업로드 (여러 개)", type="pdf", accept_multiple_files=True, key="student_answers")
     if st.session_state.get("problem_pdf") and student_pdfs:
         rubric_key = f"rubric_{st.session_state.problem_filename}"
-        if rubric_key not in st.session_state:
-            st.warning("채점 기준이 없습니다.")
+        if rubric_key not in st.session_state.generated_rubrics:
+            st.warning("채점 기준이 없습니다. STEP 1에서 먼저 채점 기준을 생성해주세요.")
         else:
             if st.button("🎯 무작위 채점 실행"):
                 all_answers, info_list = extract_answers_and_info_from_files(student_pdfs)
@@ -132,7 +159,7 @@ elif st.session_state.step == 2:
                     answer = all_answers[idx]
 
                     prompt = f"""다음은 채점 기준입니다:
-{st.session_state[rubric_key]}
+{st.session_state.generated_rubrics[rubric_key]}
 
 그리고 아래는 학생 답안입니다:
 {answer}
@@ -142,7 +169,9 @@ elif st.session_state.step == 2:
 표 아래에 총점과 간단한 피드백도 작성해주세요."""
 
                     with st.spinner("GPT가 채점 중입니다..."):
-                        result = rubric_chain.invoke({"input": prompt})
+                        # 채점에는 메모리가 필요하지 않으므로 별도 체인을 만들어 사용
+                        grading_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
+                        result = grading_chain.invoke({"input": prompt})
                         st.session_state.last_grading_result = result["text"]
                         st.session_state.last_selected_student = selected_student
                         st.success("✅ 채점 완료")
@@ -157,21 +186,35 @@ elif st.session_state.step == 3:
     if st.session_state.get("problem_pdf"):
         rubric_key = f"rubric_{st.session_state.problem_filename}"
         feedback = st.session_state.get("feedback_text", "")
-        if rubric_key not in st.session_state:
-            st.warning("채점 기준이 없습니다.")
+        
+        if rubric_key not in st.session_state.generated_rubrics:
+            st.warning("채점 기준이 없습니다. STEP 1에서 먼저 채점 기준을 생성해주세요.")
         elif st.button("♻️ 피드백 반영"):
+            # 원본 채점 기준 보존을 위해 수정된 채점 기준은 별도 키에 저장
+            if "modified_rubrics" not in st.session_state:
+                st.session_state.modified_rubrics = {}
+            
             prompt = f"""기존 채점 기준:
-{st.session_state[rubric_key]}
+{st.session_state.generated_rubrics[rubric_key]}
 
 피드백:
 {feedback}
 
 피드백을 반영한 채점 기준을 '채점 항목 | 배점 | 세부 기준' 형식의 표로 다시 작성해주세요."""
+            
             with st.spinner("GPT가 기준을 수정 중입니다..."):
-                updated = rubric_chain.invoke({"input": prompt})
-                st.session_state[rubric_key] = updated["text"]
+                # 피드백 반영에도 별도 체인 사용
+                feedback_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
+                updated = feedback_chain.invoke({"input": prompt})
+                st.session_state.modified_rubrics[rubric_key] = updated["text"]
                 st.success("✅ 채점 기준 수정 완료")
 
-        if rubric_key in st.session_state:
-            st.subheader("🆕 수정된 채점 기준")
-            st.write(st.session_state[rubric_key])
+        # 원본 채점 기준 표시
+        if rubric_key in st.session_state.generated_rubrics:
+            st.subheader("📊 원본 채점 기준")
+            st.write(st.session_state.generated_rubrics[rubric_key])
+            
+            # 수정된 채점 기준이 있으면 표시
+            if "modified_rubrics" in st.session_state and rubric_key in st.session_state.modified_rubrics:
+                st.subheader("🆕 수정된 채점 기준")
+                st.write(st.session_state.modified_rubrics[rubric_key])
