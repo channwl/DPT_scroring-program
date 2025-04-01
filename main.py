@@ -88,10 +88,13 @@ if st.session_state.step == 1:
         st.subheader("📃 문제 내용")
         st.write(text)
 
-        prompt = f"""다음 문제에 대한 채점 기준을 작성해 주세요:
+        prompt = f"""다음 문제에 대한 채점 기준을 작성해 주세요. 반드시 한글로 작성해주세요:
 문제: {text}
 - '채점 항목 | 배점 | 세부 기준' 형태로 표 작성
 - 배점 합계 포함"""
+
+        if rubric_key not in st.session_state:
+            st.session_state[rubric_key] = ""
 
         if st.button("📐 채점 기준 생성"):
             with st.spinner("GPT가 채점 기준을 생성 중입니다..."):
@@ -99,7 +102,7 @@ if st.session_state.step == 1:
                 st.session_state[rubric_key] = result["text"]
                 st.success("✅ 채점 기준 생성 완료")
 
-        if rubric_key in st.session_state:
+        if rubric_key in st.session_state and st.session_state[rubric_key]:
             st.subheader("📊 채점 기준")
             st.write(st.session_state[rubric_key])
 
