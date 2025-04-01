@@ -3,7 +3,7 @@ import PyPDF2
 import random
 import re
 import io
-import base64
+import os  # ✅ 추가
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.memory import ConversationSummaryMemory
@@ -18,40 +18,27 @@ llm = ChatOpenAI(
     temperature=0
 )
 
-# 세션 상태 초기화
-if "rubric_memory" not in st.session_state:
-    st.session_state.rubric_memory = ConversationSummaryMemory(
-        llm=llm,
-        memory_key="history",
-        return_messages=True
-    )
+# ✅ 세션 상태 초기화 함수
+def initialize_session_state():
+    defaults = {
+        "rubric_memory": ConversationSummaryMemory(
+            llm=llm, memory_key="history", return_messages=True
+        ),
+        "step": 1,
+        "generated_rubrics": {},
+        "problem_text": None,
+        "problem_filename": None,
+        "student_answers_data": [],
+        "feedback_text": "",
+        "modified_rubrics": {},
+        "last_grading_result": None,
+        "last_selected_student": None
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
-if "step" not in st.session_state:
-    st.session_state.step = 1
-
-if "generated_rubrics" not in st.session_state:
-    st.session_state.generated_rubrics = {}  # 생성된 채점 기준을 저장할 딕셔너리
-
-if "problem_text" not in st.session_state:
-    st.session_state.problem_text = None
-
-if "problem_filename" not in st.session_state:
-    st.session_state.problem_filename = None
-
-if "student_answers_data" not in st.session_state:
-    st.session_state.student_answers_data = []  # 학생 답안 데이터 저장용
-
-if "feedback_text" not in st.session_state:
-    st.session_state.feedback_text = ""
-
-if "modified_rubrics" not in st.session_state:
-    st.session_state.modified_rubrics = {}
-
-if "last_grading_result" not in st.session_state:
-    st.session_state.last_grading_result = None
-
-if "last_selected_student" not in st.session_state:
-    st.session_state.last_selected_student = None
+initialize_session_state()
 
 prompt_template = PromptTemplate.from_template("{history}\n{input}")
 rubric_chain = LLMChain(
@@ -68,35 +55,20 @@ def extract_text_from_pdf(pdf_data):
         reader = PyPDF2.PdfReader(io.BytesIO(pdf_data.read()))
     return "".join([page.extract_text() or "" for page in reader.pages])
 
+# ✅ 가독성 개선된 이름/학번 추출 함수
 def extract_info_from_filename(filename):
-    """
-    다양한 파일명 형식에서 학생 이름과 학번을 추출합니다.
-    """
-    # 확장자 제거
     base_filename = os.path.splitext(filename)[0]
-    
-    # 학번 찾기 (일반적으로 6-10자리 숫자)
+
     id_match = re.search(r'\d{6,10}', base_filename)
     student_id = id_match.group() if id_match else "UnknownID"
-    
-    # 한글 이름 찾기 (2-5자 한글)
+
     name_matches = re.findall(r'[가-힣]{2,5}', base_filename)
-    
-    # 이름으로 볼 수 없는 일반적인 단어들
-    common_words = ["기말", "중간", "과제", "시험", "수업", "수업명", "레포트", "제출", "답안"]
-    
-    # 추출된 한글 중에서 일반 단어가 아닌 것을 이름으로 간주
-    student_name = "UnknownName"
-    if name_matches:
-        for name in name_matches:
-            if name not in common_words:
-                student_name = name
-                break
-    
+    exclude_words = {"기말", "중간", "과제", "시험", "수업", "수업명", "레포트", "제출", "답안"}
+
+    student_name = next((name for name in name_matches if name not in exclude_words), "UnknownName")
     return student_name, student_id
 
 def process_student_pdfs(pdf_files):
-    """학생 PDF 파일들을 처리하고 텍스트와 정보를 세션에 저장"""
     answers, info = [], []
     for file in pdf_files:
         file.seek(0)
@@ -106,7 +78,7 @@ def process_student_pdfs(pdf_files):
         if len(text.strip()) > 20:
             answers.append(text)
             info.append({'name': name, 'id': sid, 'text': text})
-    
+
     st.session_state.student_answers_data = info
     return answers, info
 
