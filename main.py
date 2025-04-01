@@ -57,20 +57,20 @@ def extract_answers_and_info_from_files(pdf_files):
 
 # 사이드바
 with st.sidebar:
-    st.markdown("## \U0001F4D8 채점 흐름")
+    st.markdown("## 📘 채점 흐름")
 
-    if st.button("1\u20e3 문제 업로드 및 채점 기준 생성"):
+    if st.button("1️⃣ 문제 업로드 및 채점 기준 생성"):
         st.session_state.step = 1
-    if st.button("2\u20e3 학생 답안 업로드 및 무작위 채점"):
+    if st.button("2️⃣ 학생 답안 업로드 및 무작위 채점"):
         st.session_state.step = 2
-    if st.button("3\u20e3 교수자 피드백 입력"):
+    if st.button("3️⃣ 교수자 피드백 입력"):
         st.session_state.step = 3
 
-    st.subheader("\ud83d\udcdd 교수자 피드백")
+    st.markdown("### 📝 교수자 피드백", unsafe_allow_html=True)
     st.session_state.feedback_text = st.text_area("채점 기준 수정 피드백", key="sidebar_feedback")
 
     st.markdown("---")
-    st.caption("\U0001F680 본 시스템은 **DPT 팀**이 개발한 교수자 지원 도구입니다.")
+    st.caption("🚀 본 시스템은 **DPT 팀**이 개발한 교수자 지원 도구입니다.")
     st.caption("채점 기준 수립과 일관된 채점을 돕기 위해 설계되었습니다.")
 
 # 단계 안내 및 버튼
@@ -78,14 +78,14 @@ st.markdown(f"### 현재 단계: STEP {st.session_state.step}")
 
 # STEP 1
 if st.session_state.step == 1:
-    problem_pdf = st.file_uploader("\U0001F4C4 문제 PDF 업로드", type="pdf", key="problem_upload")
+    problem_pdf = st.file_uploader("📄 문제 PDF 업로드", type="pdf", key="problem_upload")
     if problem_pdf:
         st.session_state.problem_pdf = problem_pdf
         st.session_state.problem_filename = problem_pdf.name
         text = extract_text_from_pdf(problem_pdf)
         rubric_key = f"rubric_{problem_pdf.name}"
 
-        st.subheader("\U0001F4C3 문제 내용")
+        st.subheader("📃 문제 내용")
         st.write(text)
 
         prompt = f"""다음 문제에 대한 채점 기준을 작성해 주세요:
@@ -93,25 +93,25 @@ if st.session_state.step == 1:
 - '채점 항목 | 배점 | 세부 기준' 형태로 표 작성
 - 배점 합계 포함"""
 
-        if st.button("\U0001F4D0 채점 기준 생성"):
+        if st.button("📐 채점 기준 생성"):
             with st.spinner("GPT가 채점 기준을 생성 중입니다..."):
                 result = rubric_chain.invoke({"input": prompt})
                 st.session_state[rubric_key] = result["text"]
                 st.success("✅ 채점 기준 생성 완료")
 
         if rubric_key in st.session_state:
-            st.subheader("\U0001F4CA 채점 기준")
+            st.subheader("📊 채점 기준")
             st.write(st.session_state[rubric_key])
 
 # STEP 2
 elif st.session_state.step == 2:
-    student_pdfs = st.file_uploader("\U0001F4E5 학생 답안 PDF 업로드 (여러 개)", type="pdf", accept_multiple_files=True, key="student_answers")
+    student_pdfs = st.file_uploader("📥 학생 답안 PDF 업로드 (여러 개)", type="pdf", accept_multiple_files=True, key="student_answers")
     if st.session_state.get("problem_pdf") and student_pdfs:
         rubric_key = f"rubric_{st.session_state.problem_filename}"
         if rubric_key not in st.session_state:
             st.warning("채점 기준이 없습니다.")
         else:
-            if st.button("\U0001F3AF 무작위 채점 실행"):
+            if st.button("🎯 무작위 채점 실행"):
                 all_answers, info_list = extract_answers_and_info_from_files(student_pdfs)
                 if not all_answers:
                     st.warning("답안을 찾을 수 없습니다.")
