@@ -63,15 +63,36 @@ def extract_text_from_pdf(pdf_data):
 # 파일명에서 이름/학번추출
 def extract_info_from_filename(filename):
     base_filename = os.path.splitext(filename)[0]
-
-    id_match = re.search(r'\d{6,10}', base_filename)
+    
+    # 학번 추출 (10자리 숫자 패턴)
+    id_match = re.search(r'\d{10}', base_filename)
     student_id = id_match.group() if id_match else "UnknownID"
-
+    
+    # 한글 이름 추출 (2-5자 이름 뒤에 '(이름)' 패턴이 있는 경우)
+    name_with_label = re.search(r'([가-힣]{2,5})\(이름\)', base_filename)
+    if name_with_label:
+        student_name = name_with_label.group(1)
+        return student_name, student_id
+    
+    # '(이름)' 패턴이 없는 경우: 학번 다음에 오는 언더스코어(_) 이후의 한글 이름 찾기
+    if id_match:
+        id_pos = base_filename.find(student_id)
+        after_id = base_filename[id_pos + len(student_id):]
+        
+        # 학번 다음에 언더스코어가 있고 그 뒤에 한글이 있는 경우
+        name_after_id = re.search(r'_([가-힣]{2,5})', after_id)
+        if name_after_id:
+            student_name = name_after_id.group(1)
+            return student_name, student_id
+    
+    # 위 방법으로 찾지 못한 경우: 일반적인 한글 이름 추출
     name_matches = re.findall(r'[가-힣]{2,5}', base_filename)
-    exclude_words = {"기말", "중간", "과제", "시험", "수업", "수업명", "레포트", "제출", "답안"}
-
-    student_name = next((name for name in name_matches if name not in exclude_words), "UnknownName")
-    return student_name, student_id
+    if name_matches:
+        # 확장자 제외한 파일명의 마지막 한글 단어를 이름으로 가정
+        # (파일명의 끝 부분에 이름이 올 가능성이 높음)
+        return name_matches[-1], student_id
+    
+    return "UnknownName", student_id
 
 #여러 학생 PDF를 읽고, 이름/학번/답안 텍스트를 저장
 def process_student_pdfs(pdf_files):
