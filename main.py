@@ -9,10 +9,9 @@ from langchain.chains import LLMChain
 from langchain.memory import ConversationSummaryMemory
 from langchain_core.prompts import PromptTemplate
 
-#Streamlit 페이지 설정
+# Streamlit 페이지 설정
 st.set_page_config(page_title="AI 채점 시스템", layout="wide")
 st.title("🎓 AI 기반 자동 채점 시스템 - by DPT")
-
 
 # GPT 연결 및 초기화
 llm = ChatOpenAI(
@@ -21,9 +20,7 @@ llm = ChatOpenAI(
     temperature=0
 )
 
-#세션 상태 초기화 함수
-#페이지가 새로고침 될때마다 변수를 잃어버리기 때문에, 다음과 같은 변수를 session_state에 넣어줌
-#값이 유지되는 결과가 나타남
+# 세션 상태 초기화 함수
 def initialize_session_state():
     defaults = {
         "rubric_memory": ConversationSummaryMemory(
@@ -41,12 +38,11 @@ def initialize_session_state():
     }
     for key, value in defaults.items():
         if key not in st.session_state:
-            st.session_state[key] = value #이 부분
-            
+            st.session_state[key] = value
+
 initialize_session_state()
 
-#LangChain 프롬포트 및 체인 설정
-#rubric_chain : 채점 기준을 생성할때 사용하는 체인
+# LangChain 프롬프트 및 체인 설정
 prompt_template = PromptTemplate.from_template("{history}\n{input}")
 rubric_chain = LLMChain(
     llm=llm,
@@ -55,6 +51,7 @@ rubric_chain = LLMChain(
 )
 
 # PDF 텍스트 추출
+
 def extract_text_from_pdf(pdf_data):
     if isinstance(pdf_data, bytes):
         reader = PyPDF2.PdfReader(io.BytesIO(pdf_data))
@@ -62,45 +59,27 @@ def extract_text_from_pdf(pdf_data):
         reader = PyPDF2.PdfReader(io.BytesIO(pdf_data.read()))
     return "".join([page.extract_text() or "" for page in reader.pages])
 
-#파일 이름 추출
+# 파일 이름에서 이름/학번 추출
+
 def extract_info_from_filename(filename):
-    base_filename = os.path.splitext(filename)[0]
-    
-    # 파일명을 언더스코어(_)로 분리
-    parts = base_filename.split('_')
-    
-    # 마지막 두 부분이 학번과 이름일 가능성이 높음
-    if len(parts) >= 2:
-        # 마지막 부분이 한글 이름인지 확인
-        if re.match(r'^[가-힣]{2,5}$', parts[-1]):
-            student_name = parts[-1]
-        else:
-            # 한글 이름 패턴 찾기
-            name_match = re.search(r'[가-힣]{2,5}', parts[-1])
-            student_name = name_match.group() if name_match else "UnknownName"
-        
-        # 뒤에서 두 번째 부분이 학번인지 확인 (숫자로만 구성)
-        if len(parts) >= 3 and re.match(r'^\d{6,10}$', parts[-2]):
-            student_id = parts[-2]
-        else:
-            # 학번 패턴 찾기
-            id_match = re.search(r'\d{6,10}', base_filename)
-            student_id = id_match.group() if id_match else "UnknownID"
-            
-        return student_name, student_id
-    
-    # 언더스코어 분리로 처리되지 않는 경우를 위한 backup 처리
-    # 학번 추출 (6-10자리 숫자)
+    base_filename = os.path.splitext(os.path.basename(filename))[0]
+
+    # 학번 찾기 (6~10자리 숫자)
     id_match = re.search(r'\d{6,10}', base_filename)
     student_id = id_match.group() if id_match else "UnknownID"
-    
-    # 이름 추출 (2-5자 한글)
-    name_match = re.search(r'[가-힣]{2,5}', base_filename)
-    student_name = name_match.group() if name_match else "UnknownName"
-    
-    return student_name, student_id
 
-#여러 학생 PDF를 읽고, 이름/학번/답안 텍스트를 저장
+    # 이름 후보 찾기 (2~5자 한글, 학번 제외)
+    name_candidates = [part for part in re.findall(r'[가-힣]{2,5}', base_filename) if part not in student_id]
+    exclude_words = {"기말", "중간", "과제", "시험", "수업", "레포트", "제출", "답안"}
+
+    for name in name_candidates:
+        if name not in exclude_words:
+            return name, student_id
+
+    return "UnknownName", student_id
+
+# 여러 학생 PDF를 읽고, 이름/학번/답안 텍스트를 저장
+
 def process_student_pdfs(pdf_files):
     answers, info = [], []
     for file in pdf_files:
@@ -117,7 +96,7 @@ def process_student_pdfs(pdf_files):
 
 # 사이드바
 with st.sidebar:
-    st.markdown("## 📘 채점 흐름")
+    st.markdown("## \U0001F4D8 채점 흐름")
 
     if st.button("1️⃣ 문제 업로드 및 채점 기준 생성"):
         st.session_state.step = 1
@@ -126,53 +105,33 @@ with st.sidebar:
     if st.button("3️⃣ 교수자 피드백 입력"):
         st.session_state.step = 3
 
-    st.markdown("### 📝 교수자 피드백", unsafe_allow_html=True)
+    st.markdown("### \U0001F4DD 교수자 피드백", unsafe_allow_html=True)
     feedback = st.text_area("채점 기준 수정 피드백", value=st.session_state.feedback_text, key="sidebar_feedback")
-    
-    # 피드백 텍스트 업데이트
     st.session_state.feedback_text = feedback
 
     st.markdown("---")
     st.caption("🚀 본 시스템은 **DPT 팀**이 개발한 교수자 지원 도구입니다.")
     st.caption("채점 기준 수립과 일관된 채점을 돕기 위해 설계되었습니다.")
 
-# 사용법 안내
-with st.expander("ℹ️ 사용법 보기"):
-    st.markdown("""
-### 📝 사용법 안내
+    with st.expander("ℹ️ 사용법 안내 보기"):
+        st.markdown("""
+**이 시스템은 교수자의 채점 업무를 보조하기 위한 도구입니다.**  
+아래 3단계를 따라 사용하세요:
 
-이 시스템은 교수자의 채점 업무를 보조하기 위해 만들어졌습니다.  
-아래의 3단계를 따라 사용하시면 됩니다.
+**STEP 1: 문제 업로드 및 채점 기준 생성**  
+- 문제 PDF 업로드  
+- `📐 채점 기준 생성` 클릭 → GPT가 기준 생성
 
----
+**STEP 2: 학생 답안 업로드 및 무작위 채점**  
+- 학생 PDF 여러 개 업로드  
+- `🎯 무작위 채점 실행` 클릭 → GPT가 랜덤 채점
 
-#### STEP 1: 문제 업로드 및 채점 기준 생성
-1. 문제 PDF를 업로드합니다.
-2. `📐 채점 기준 생성` 버튼을 클릭하면, GPT가 자동으로 채점 기준을 생성해줍니다.
-3. 생성된 기준은 마크다운 표로 확인할 수 있습니다.
+**STEP 3: 교수자 피드백 입력 및 기준 수정**  
+- 사이드바에 피드백 입력  
+- `♻️ 피드백 반영` 클릭 → 수정된 기준 생성
 
----
-
-#### STEP 2: 학생 답안 업로드 및 무작위 채점
-1. 여러 학생의 PDF 답안 파일을 업로드합니다.
-2. `🎯 무작위 채점 실행` 버튼을 클릭하면, 한 명의 학생 답안을 GPT가 자동으로 채점해줍니다.
-3. 채점 결과는 항목별 점수와 간단한 피드백이 포함된 표로 출력됩니다.
-
----
-
-#### STEP 3: 교수자 피드백 입력 및 채점 기준 수정
-1. 사이드바에 있는 `📝 교수자 피드백` 입력란에 개선하고 싶은 내용을 작성합니다.
-2. `♻️ 피드백 반영` 버튼을 누르면, GPT가 수정된 채점 기준을 새로 생성해줍니다.
-
----
-
-💡 이 시스템은 채점 기준 수립과 일관된 평가를 도와줍니다.  
-🚀 GPT-4o 모델을 기반으로 하고 있으며, 채점 결과는 참고용입니다.
-""")
-
-
-# 단계 안내 및 버튼
-st.markdown(f"### 현재 단계: STEP {st.session_state.step}")
+💡 GPT-4o 기반이며, 채점 결과는 참고용입니다.
+        """)
 
 # STEP 1 - 문제 업로드 -> 채점 기준 생성
 if st.session_state.step == 1:
