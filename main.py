@@ -11,7 +11,7 @@ from langchain_core.prompts import PromptTemplate
 
 #Streamlit 페이지 설정
 st.set_page_config(page_title="AI 채점 시스템", layout="wide")
-st.title("📚 AI 기반 자동 채점 시스템 - by DPT")
+st.title("🎓 AI 기반 자동 채점 시스템 - by DPT")
 
 
 # GPT 연결 및 초기화
