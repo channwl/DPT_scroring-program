@@ -60,39 +60,43 @@ def extract_text_from_pdf(pdf_data):
         reader = PyPDF2.PdfReader(io.BytesIO(pdf_data.read()))
     return "".join([page.extract_text() or "" for page in reader.pages])
 
-# 파일명에서 이름/학번추출
+#파일 이름 추출
 def extract_info_from_filename(filename):
     base_filename = os.path.splitext(filename)[0]
     
-    # 학번 추출 (10자리 숫자 패턴)
-    id_match = re.search(r'\d{10}', base_filename)
-    student_id = id_match.group() if id_match else "UnknownID"
+    # 파일명을 언더스코어(_)로 분리
+    parts = base_filename.split('_')
     
-    # 한글 이름 추출 (2-5자 이름 뒤에 '(이름)' 패턴이 있는 경우)
-    name_with_label = re.search(r'([가-힣]{2,5})\(이름\)', base_filename)
-    if name_with_label:
-        student_name = name_with_label.group(1)
+    # 마지막 두 부분이 학번과 이름일 가능성이 높음
+    if len(parts) >= 2:
+        # 마지막 부분이 한글 이름인지 확인
+        if re.match(r'^[가-힣]{2,5}$', parts[-1]):
+            student_name = parts[-1]
+        else:
+            # 한글 이름 패턴 찾기
+            name_match = re.search(r'[가-힣]{2,5}', parts[-1])
+            student_name = name_match.group() if name_match else "UnknownName"
+        
+        # 뒤에서 두 번째 부분이 학번인지 확인 (숫자로만 구성)
+        if len(parts) >= 3 and re.match(r'^\d{6,10}$', parts[-2]):
+            student_id = parts[-2]
+        else:
+            # 학번 패턴 찾기
+            id_match = re.search(r'\d{6,10}', base_filename)
+            student_id = id_match.group() if id_match else "UnknownID"
+            
         return student_name, student_id
     
-    # '(이름)' 패턴이 없는 경우: 학번 다음에 오는 언더스코어(_) 이후의 한글 이름 찾기
-    if id_match:
-        id_pos = base_filename.find(student_id)
-        after_id = base_filename[id_pos + len(student_id):]
-        
-        # 학번 다음에 언더스코어가 있고 그 뒤에 한글이 있는 경우
-        name_after_id = re.search(r'_([가-힣]{2,5})', after_id)
-        if name_after_id:
-            student_name = name_after_id.group(1)
-            return student_name, student_id
+    # 언더스코어 분리로 처리되지 않는 경우를 위한 backup 처리
+    # 학번 추출 (6-10자리 숫자)
+    id_match = re.search(r'\d{6,10}', base_filename)
+    student_id = id_match.group() if id_match else "UnknownID"
     
-    # 위 방법으로 찾지 못한 경우: 일반적인 한글 이름 추출
-    name_matches = re.findall(r'[가-힣]{2,5}', base_filename)
-    if name_matches:
-        # 확장자 제외한 파일명의 마지막 한글 단어를 이름으로 가정
-        # (파일명의 끝 부분에 이름이 올 가능성이 높음)
-        return name_matches[-1], student_id
+    # 이름 추출 (2-5자 한글)
+    name_match = re.search(r'[가-힣]{2,5}', base_filename)
+    student_name = name_match.group() if name_match else "UnknownName"
     
-    return "UnknownName", student_id
+    return student_name, student_id
 
 #여러 학생 PDF를 읽고, 이름/학번/답안 텍스트를 저장
 def process_student_pdfs(pdf_files):
