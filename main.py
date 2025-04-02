@@ -9,6 +9,7 @@ from langchain.chains import LLMChain
 from langchain.memory import ConversationSummaryMemory
 from langchain_core.prompts import PromptTemplate
 
+#Streamlit 페이지 설정
 st.set_page_config(page_title="AI 채점 시스템", layout="wide")
 
 # GPT 연결 및 초기화
@@ -19,6 +20,8 @@ llm = ChatOpenAI(
 )
 
 #세션 상태 초기화 함수
+#페이지가 새로고침 될때마다 변수를 잃어버리기 때문에, 다음과 같은 변수를 session_state에 넣어줌
+#값이 유지되는 결과가 나타남
 def initialize_session_state():
     defaults = {
         "rubric_memory": ConversationSummaryMemory(
@@ -36,10 +39,12 @@ def initialize_session_state():
     }
     for key, value in defaults.items():
         if key not in st.session_state:
-            st.session_state[key] = value
-
+            st.session_state[key] = value #이 부분
+            
 initialize_session_state()
 
+#LangChain 프롬포트 및 체인 설정
+#rubric_chain : 채점 기준을 생성할때 사용하는 체인
 prompt_template = PromptTemplate.from_template("{history}\n{input}")
 rubric_chain = LLMChain(
     llm=llm,
@@ -47,7 +52,7 @@ rubric_chain = LLMChain(
     memory=st.session_state.rubric_memory
 )
 
-# 유틸 함수들
+# PDF 텍스트 추출
 def extract_text_from_pdf(pdf_data):
     if isinstance(pdf_data, bytes):
         reader = PyPDF2.PdfReader(io.BytesIO(pdf_data))
@@ -55,7 +60,7 @@ def extract_text_from_pdf(pdf_data):
         reader = PyPDF2.PdfReader(io.BytesIO(pdf_data.read()))
     return "".join([page.extract_text() or "" for page in reader.pages])
 
-# ✅ 가독성 개선된 이름/학번 추출 함수
+# 파일명에서 이름/학번추출
 def extract_info_from_filename(filename):
     base_filename = os.path.splitext(filename)[0]
 
@@ -68,6 +73,7 @@ def extract_info_from_filename(filename):
     student_name = next((name for name in name_matches if name not in exclude_words), "UnknownName")
     return student_name, student_id
 
+#여러 학생 PDF를 읽고, 이름/학번/답안 텍스트를 저장
 def process_student_pdfs(pdf_files):
     answers, info = [], []
     for file in pdf_files:
@@ -105,7 +111,7 @@ with st.sidebar:
 # 단계 안내 및 버튼
 st.markdown(f"### 현재 단계: STEP {st.session_state.step}")
 
-# STEP 1
+# STEP 1 - 문제 업로드 -> 채점 기준 생성
 if st.session_state.step == 1:
     problem_pdf = st.file_uploader("📄 문제 PDF 업로드", type="pdf", key="problem_upload")
 
@@ -133,7 +139,7 @@ if st.session_state.step == 1:
 2. 각 항목의 세부 기준은 구체적으로 작성해주세요
 3. 설명은 반드시 **한글**로 작성해야 하며, 영어 혼용 없이 작성해주세요
 4. 표 아래에 **배점 총합**도 함께 작성해주세요
-5. 반드시 마크다운 표 문법을 정확히 사용하십시오 (각 행 시작과 끝에 |, 헤더 행 아래에 |---|---|---| 형식의 구분선)
+5. 반드시 마크다운 표 문법을 정확히 사용해주세요, (각 행 시작과 끝에 |, 헤더 행 아래에 |---|---|---| 형식의 구분선)
 
 예시 형식:
 | 채점 항목 | 배점 | 세부 기준 |
@@ -187,7 +193,7 @@ if st.session_state.step == 1:
             st.subheader("📊 채점 기준")
             st.markdown(st.session_state.generated_rubrics[rubric_key])
 
-
+#학생 답안 -> 무작위 채점
 # STEP 2
 elif st.session_state.step == 2:
     # 문제가 이미 업로드되었는지 확인
@@ -248,7 +254,7 @@ elif st.session_state.step == 2:
         st.subheader(f"📋 채점 결과 - {stu['name']} ({stu['id']})")
         st.markdown(st.session_state.last_grading_result)
 
-# STEP 3
+# STEP 3 : 교수자 피드백 -> 채점 기준 수정
 elif st.session_state.step == 3:
     # 문제가 이미 업로드되었는지 확인
     if st.session_state.problem_text and st.session_state.problem_filename:
