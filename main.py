@@ -4,23 +4,24 @@ import random
 import re
 import io
 import os
+import matplotlib.pyplot as plt
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.memory import ConversationSummaryMemory
 from langchain_core.prompts import PromptTemplate
 
-# Streamlit 페이지 설정
+# 페이지 설정
 st.set_page_config(page_title="AI 채점 시스템", layout="wide")
 st.title("🎓 AI 기반 자동 채점 시스템 - by DPT")
 
-# GPT 연결 및 초기화
+# GPT 초기화
 llm = ChatOpenAI(
     openai_api_key=st.secrets["openai"]["API_KEY"],
     model_name="gpt-4o",
     temperature=0
 )
 
-# 세션 상태 초기화 함수
+# 세션 상태 초기화
 def initialize_session_state():
     defaults = {
         "rubric_memory": ConversationSummaryMemory(
@@ -34,7 +35,8 @@ def initialize_session_state():
         "feedback_text": "",
         "modified_rubrics": {},
         "last_grading_result": None,
-        "last_selected_student": None
+        "last_selected_student": None,
+        "all_grading_results": []
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -42,44 +44,28 @@ def initialize_session_state():
 
 initialize_session_state()
 
-# LangChain 프롬프트 및 체인 설정
+# Prompt 및 체인 설정
 prompt_template = PromptTemplate.from_template("{history}\n{input}")
-rubric_chain = LLMChain(
-    llm=llm,
-    prompt=prompt_template,
-    memory=st.session_state.rubric_memory
-)
+rubric_chain = LLMChain(llm=llm, prompt=prompt_template, memory=st.session_state.rubric_memory)
 
-# PDF 텍스트 추출
-
+# PDF 텍스트 추출 함수
 def extract_text_from_pdf(pdf_data):
-    if isinstance(pdf_data, bytes):
-        reader = PyPDF2.PdfReader(io.BytesIO(pdf_data))
-    else:
-        reader = PyPDF2.PdfReader(io.BytesIO(pdf_data.read()))
+    reader = PyPDF2.PdfReader(io.BytesIO(pdf_data) if isinstance(pdf_data, bytes) else io.BytesIO(pdf_data.read()))
     return "".join([page.extract_text() or "" for page in reader.pages])
 
-# 파일 이름에서 이름/학번 추출
-
+# 파일명에서 이름/학번 추출
 def extract_info_from_filename(filename):
     base_filename = os.path.splitext(os.path.basename(filename))[0]
-
-    # 학번 찾기 (6~10자리 숫자)
     id_match = re.search(r'\d{6,10}', base_filename)
     student_id = id_match.group() if id_match else "UnknownID"
-
-    # 이름 후보 찾기 (2~5자 한글, 학번 제외)
     name_candidates = [part for part in re.findall(r'[가-힣]{2,5}', base_filename) if part not in student_id]
     exclude_words = {"기말", "중간", "과제", "시험", "수업", "레포트", "제출", "답안"}
-
     for name in name_candidates:
         if name not in exclude_words:
             return name, student_id
-
     return "UnknownName", student_id
 
-# 여러 학생 PDF를 읽고, 이름/학번/답안 텍스트를 저장
-
+# 학생 PDF 처리
 def process_student_pdfs(pdf_files):
     answers, info = [], []
     for file in pdf_files:
@@ -90,9 +76,13 @@ def process_student_pdfs(pdf_files):
         if len(text.strip()) > 20:
             answers.append(text)
             info.append({'name': name, 'id': sid, 'text': text})
-
     st.session_state.student_answers_data = info
     return answers, info
+
+# 총점 추출 함수
+def extract_total_score(grading_text):
+    match = re.search(r'총점[:：]?\s*(\d+)\s*점', grading_text)
+    return int(match.group(1)) if match else None
 
 # 사이드바
 with st.sidebar:
@@ -104,40 +94,20 @@ with st.sidebar:
         st.session_state.step = 2
     if st.button("3️⃣ 교수자 피드백 입력"):
         st.session_state.step = 3
+    if st.button("4️⃣ 전체 학생 일괄 채점"):
+        st.session_state.step = 4
 
-    st.markdown("### \U0001F4DD 교수자 피드백", unsafe_allow_html=True)
+    st.markdown("### \U0001F4DD 교수자 피드백")
     feedback = st.text_area("채점 기준 수정 피드백", value=st.session_state.feedback_text, key="sidebar_feedback")
     st.session_state.feedback_text = feedback
 
-    st.markdown("---")
-    st.caption("🚀 본 시스템은 **DPT 팀**이 개발한 교수자 지원 도구입니다.")
-    st.caption("채점 기준 수립과 일관된 채점을 돕기 위해 설계되었습니다.")
-
-    # ✅ 사용법 안내 (사이드바에 위치)
     with st.expander("ℹ️ 사용법 안내 보기"):
         st.markdown("""
-**이 시스템은 교수자의 채점 업무를 보조하기 위한 도구입니다.**  
-아래 3단계를 따라 사용하세요:
-
----
-
-**✅ STEP 1: 문제 업로드 및 채점 기준 생성**
-- 문제 PDF를 업로드하고
-- `📐 채점 기준 생성` 버튼 클릭 → GPT가 기준 생성
-
-**✅ STEP 2: 학생 답안 업로드 및 무작위 채점**
-- 여러 학생 답안 PDF 업로드
-- `🎯 무작위 채점 실행` 클릭 → 랜덤 학생 채점
-
-**✅ STEP 3: 교수자 피드백 반영**
-- 사이드바에 피드백 입력 후
-- `♻️ 피드백 반영` 버튼 클릭 → 수정된 기준 생성
-
----
-
-💡 GPT-4o를 기반으로 하며, 채점 기준과 점수는 참고용입니다.
+**STEP 1:** 문제 업로드 → 채점 기준 생성  
+**STEP 2:** 학생 답안 업로드 → 무작위 채점  
+**STEP 3:** 교수자 피드백 → 기준 수정  
+**STEP 4:** 전체 학생 자동 채점 + 점수 분포 시각화
 """)
-
 
 # STEP 1 - 문제 업로드 -> 채점 기준 생성
 if st.session_state.step == 1:
