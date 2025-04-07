@@ -313,7 +313,7 @@ elif st.session_state.step == 3:
             st.session_state.step = 1
 
 # -------------------- STEP 4: 전체 채점 및 하이라이팅 --------------------
-if st.session_state.step == 4:
+elif st.session_state.step == 4:
     if st.session_state.problem_text and st.session_state.problem_filename:
         rubric_key = f"rubric_{st.session_state.problem_filename}"
         
@@ -330,20 +330,20 @@ if st.session_state.step == 4:
             st.markdown(rubric_text)
 
             # 하이라이팅 함수 정의
-            def apply_highlight(text, grading_items):
+            def apply_highlight(text, evidence_list):
                 """
                 학생 답안에서 평가 근거가 된 부분을 하이라이팅
                 """
                 highlighted_text = text
                 
-                # 근거 문장들을 찾아서 하이라이팅
-                for item in grading_items:
-                    evidence = item.get("근거문장", "")
+                for idx, evidence in enumerate(evidence_list):
                     if evidence and evidence in highlighted_text:
-                        # 노란색 배경으로 하이라이팅
+                        # 각 항목마다 다른 색상 사용 (HSL 색상 사용)
+                        hue = (idx * 30) % 360
+                        color = f"hsl({hue}, 80%, 85%)"
                         highlighted_text = highlighted_text.replace(
                             evidence,
-                            f'<span style="background-color: #FFFF00;">{evidence}</span>'
+                            f'<span style="background-color: {color}; padding: 2px; border-radius: 3px;">{evidence}</span>'
                         )
                 
                 # 줄바꿈 보존
@@ -393,6 +393,7 @@ if st.session_state.step == 4:
 1. "evidence" 필드에는 반드시 원문에서 실제로 찾을 수 있는 텍스트를 그대로 복사해서 넣어주세요. 추상적인 설명이 아닌 실제 문장이어야 합니다.
 2. 근거를 찾을 수 없는 경우에만 "evidence" 필드를 비워두세요.
 3. 모든 JSON 필드 이름과 구조를 정확히 지켜주세요.
+4. JSON만 반환해주세요. 다른 설명은 필요 없습니다.
 """
                         # GPT 호출
                         result = grading_chain.invoke({"input": prompt})
@@ -405,32 +406,40 @@ if st.session_state.step == 4:
                                 json_content = result["text"][json_start:json_end+1]
                                 data = json.loads(json_content)
                                 
-                                # 하이라이팅 적용
-                                highlighted_answer = answer
-                                for detail in data.get("grading_details", []):
-                                    evidence = detail.get("evidence", "")
-                                    if evidence and evidence in highlighted_answer:
-                                        # 각 채점 항목에 대한 다른 색상 적용
-                                        color = f"hsl({(hash(detail['criterion']) % 360)}, 80%, 80%)"
-                                        highlighted_answer = highlighted_answer.replace(
-                                            evidence,
-                                            f'<span style="background-color: {color}; padding: 2px; border-radius: 3px;" title="{detail["criterion"]}: {detail["given_score"]}/{detail["max_score"]}점">{evidence}</span>'
-                                        )
+                                # 근거 문장 추출
+                                evidence_list = [detail.get("evidence", "") for detail in data.get("grading_details", [])]
                                 
-                                # 줄바꿈 보존
-                                highlighted_answer = highlighted_answer.replace('\n', '<br>')
+                                # 하이라이팅 적용
+                                highlighted_answer = apply_highlight(answer, evidence_list)
+                                
+                                # 마크다운 테이블 생성
+                                markdown_table = "| 채점 항목 | 배점 | 부여 점수 | 평가 내용 |\n"
+                                markdown_table += "|---------|-----|---------|----------|\n"
+                                
+                                for detail in data.get("grading_details", []):
+                                    criterion = detail.get("criterion", "")
+                                    max_score = detail.get("max_score", 0)
+                                    given_score = detail.get("given_score", 0)
+                                    explanation = detail.get("explanation", "")
+                                    
+                                    markdown_table += f"| {criterion} | {max_score}점 | {given_score}점 | {explanation} |\n"
+                                
+                                # 총점 추가
+                                total_score = data.get("total_score", 0)
+                                markdown_table += f"\n**총점: {total_score}점**\n\n**피드백:** {data.get('feedback', '')}"
                                 
                                 # 결과 저장
                                 st.session_state.highlighted_results.append({
                                     "name": name,
                                     "id": sid,
-                                    "score": data.get("total_score"),
-                                    "feedback": data.get("feedback"),
+                                    "score": total_score,
+                                    "feedback": data.get("feedback", ""),
                                     "highlighted_text": highlighted_answer,
-                                    "grading_details": data.get("grading_details")
+                                    "markdown_table": markdown_table,
+                                    "grading_details": data.get("grading_details", [])
                                 })
                                 
-                                # 원본 응답도 저장
+                                # 원본 JSON 응답도 저장
                                 st.session_state.all_grading_results.append({
                                     "name": name, 
                                     "id": sid,
@@ -453,29 +462,37 @@ if st.session_state.step == 4:
             if st.session_state.highlighted_results:
                 st.subheader("📋 전체 학생 채점 결과")
                 
-                # 학생 선택 필터
-                all_students = [(f"{r['name']} ({r['id']}) - {r['score']}점" if r['score'] is not None else f"{r['name']} ({r['id']})")
-                               for r in st.session_state.highlighted_results]
-                selected_student = st.selectbox("🧑‍🎓 학생 선택", ["모든 학생 보기"] + all_students)
+                # 정렬 옵션
+                sort_options = ["이름순", "학번순", "점수 높은순", "점수 낮은순"]
+                sort_method = st.radio("정렬 방식", sort_options, horizontal=True)
+                
+                # 정렬 적용
+                sorted_results = st.session_state.highlighted_results.copy()
+                if sort_method == "이름순":
+                    sorted_results.sort(key=lambda x: x["name"])
+                elif sort_method == "학번순":
+                    sorted_results.sort(key=lambda x: x["id"])
+                elif sort_method == "점수 높은순":
+                    sorted_results.sort(key=lambda x: x["score"] if x["score"] is not None else -1, reverse=True)
+                elif sort_method == "점수 낮은순":
+                    sorted_results.sort(key=lambda x: x["score"] if x["score"] is not None else float('inf'))
+                
+                # 학생 선택 필터 생성
+                student_options = [(f"{r['name']} ({r['id']}) - {r['score']}점" if r['score'] is not None else f"{r['name']} ({r['id']})")
+                                   for r in sorted_results]
+                selected_student = st.selectbox("🧑‍🎓 학생 선택", ["모든 학생 보기"] + student_options)
                 
                 scores = []
                 
                 # 선택된 학생 또는 모든 학생 결과 표시
-                for r in st.session_state.highlighted_results:
+                for r in sorted_results:
                     student_label = f"{r['name']} ({r['id']}) - {r['score']}점" if r['score'] is not None else f"{r['name']} ({r['id']})"
                     
                     if selected_student == "모든 학생 보기" or selected_student == student_label:
                         st.markdown(f"### ✍️ {r['name']} ({r['id']}) - 총점: {r['score']}점")
                         
-                        with st.expander("📝 채점 세부 내역", expanded=False):
-                            for detail in r.get("grading_details", []):
-                                st.markdown(f"""
-                                **{detail.get('criterion')}** ({detail.get('given_score')}/{detail.get('max_score')}점)  
-                                - 평가: {detail.get('explanation')}  
-                                - 근거: _{detail.get('evidence', '(근거 없음)')}_ 
-                                """)
-                        
-                        st.markdown(f"🗣️ **GPT 피드백:** {r['feedback']}")
+                        # 마크다운 테이블로 채점 결과 표시
+                        st.markdown(r["markdown_table"])
                         
                         with st.expander("🧾 학생 답안 (하이라이팅 표시)", expanded=True):
                             st.markdown(r["highlighted_text"], unsafe_allow_html=True)
@@ -488,41 +505,51 @@ if st.session_state.step == 4:
                 # 점수 분포 시각화 (모든 학생 선택 시에만)
                 if scores and selected_student == "모든 학생 보기":
                     st.subheader("📊 점수 분포")
-                    fig, ax = plt.subplots(figsize=(10, 6))
                     
-                    # 점수 범위에 맞게 bins 설정
-                    min_score = min(scores)
-                    max_score = max(scores)
-                    bins = range(min_score, max_score + 2)
+                    col1, col2 = st.columns([3, 1])
                     
-                    # 히스토그램 생성
-                    n, bins, patches = ax.hist(scores, bins=bins, edgecolor='black', alpha=0.7, align='left')
+                    with col1:
+                        fig, ax = plt.subplots(figsize=(10, 6))
+                        
+                        # 점수 범위에 맞게 bins 설정
+                        min_score = min(scores)
+                        max_score = max(scores)
+                        bins = range(min_score, max_score + 2)
+                        
+                        # 히스토그램 생성
+                        n, bins, patches = ax.hist(scores, bins=bins, edgecolor='black', alpha=0.7, align='left', color='skyblue')
+                        
+                        # 평균선 추가
+                        mean_score = sum(scores) / len(scores)
+                        ax.axvline(mean_score, color='red', linestyle='dashed', linewidth=1)
+                        ax.text(mean_score + 0.5, max(n) * 0.9, f'평균: {mean_score:.1f}점', color='red')
+                        
+                        # 축 및 제목 설정
+                        ax.set_xlabel("점수")
+                        ax.set_ylabel("학생 수")
+                        ax.set_title("AI 채점 점수 분포")
+                        ax.set_xticks(range(min_score, max_score + 1))
+                        ax.grid(axis='y', alpha=0.3)
+                        
+                        # 그래프 표시
+                        st.pyplot(fig)
                     
-                    # 평균선 추가
-                    mean_score = sum(scores) / len(scores)
-                    ax.axvline(mean_score, color='red', linestyle='dashed', linewidth=1)
-                    ax.text(mean_score + 0.5, max(n) * 0.9, f'평균: {mean_score:.1f}점', color='red')
-                    
-                    # 축 및 제목 설정
-                    ax.set_xlabel("점수")
-                    ax.set_ylabel("학생 수")
-                    ax.set_title("GPT 채점 점수 분포")
-                    ax.set_xticks(range(min_score, max_score + 1))
-                    ax.grid(axis='y', alpha=0.3)
-                    
-                    # 그래프 표시
-                    st.pyplot(fig)
-                    
-                    # 기본 통계 정보 표시
-                    col1, col2, col3, col4 = st.columns(4)
-                    col1.metric("평균 점수", f"{mean_score:.1f}점")
-                    col2.metric("최고 점수", f"{max_score}점")
-                    col3.metric("최저 점수", f"{min_score}점")
-                    col4.metric("총 학생 수", f"{len(scores)}명")
+                    with col2:
+                        # 기본 통계 정보 표시
+                        st.metric("평균 점수", f"{mean_score:.1f}점")
+                        st.metric("최고 점수", f"{max_score}점")
+                        st.metric("최저 점수", f"{min_score}점")
+                        st.metric("총 학생 수", f"{len(scores)}명")
+                        
+                        import numpy as np
+                        median_score = np.median(scores)
+                        std_dev = np.std(scores)
+                        st.metric("중앙값", f"{median_score:.1f}점")
+                        st.metric("표준편차", f"{std_dev:.2f}")
                     
                     # 엑셀 다운로드 기능
                     excel_data = []
-                    for r in st.session_state.highlighted_results:
+                    for r in sorted_results:
                         if r["score"] is not None:
                             row = {
                                 "학번": r["id"],
@@ -534,7 +561,8 @@ if st.session_state.step == 4:
                             for detail in r.get("grading_details", []):
                                 criterion = detail.get("criterion", "")
                                 score = detail.get("given_score", 0)
-                                row[criterion] = score
+                                max_score = detail.get("max_score", 0)
+                                row[f"{criterion}({max_score}점)"] = score
                             excel_data.append(row)
                     
                     if excel_data:
@@ -545,6 +573,26 @@ if st.session_state.step == 4:
                         buffer = io.BytesIO()
                         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
                             df.to_excel(writer, sheet_name='성적표', index=False)
+                            
+                            # 워크시트와 워크북 객체 가져오기
+                            workbook = writer.book
+                            worksheet = writer.sheets['성적표']
+                            
+                            # 열 너비 자동 조정
+                            for i, col in enumerate(df.columns):
+                                column_width = max(df[col].astype(str).map(len).max(), len(col)) + 2
+                                worksheet.set_column(i, i, column_width)
+                            
+                            # 헤더 서식 설정
+                            header_format = workbook.add_format({
+                                'bold': True,
+                                'bg_color': '#D9E1F2',
+                                'border': 1
+                            })
+                            
+                            # 헤더에 서식 적용
+                            for col_num, value in enumerate(df.columns.values):
+                                worksheet.write(0, col_num, value, header_format)
                         
                         # 다운로드 버튼
                         st.download_button(
