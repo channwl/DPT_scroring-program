@@ -4,6 +4,7 @@ import random
 import re
 import io
 import os
+import json
 import matplotlib.pyplot as plt
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
