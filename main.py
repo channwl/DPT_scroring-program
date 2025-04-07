@@ -12,8 +12,8 @@ from langchain.memory import ConversationSummaryMemory
 from langchain_core.prompts import PromptTemplate
 
 # -------------------- 초기 설정 --------------------
-st.set_page_config(page_title="설명 가능한 채점 시스템", layout="wide")
-st.title("🎓 Explainable AI 채점 시스템")
+st.set_page_config(page_title="상호작용 채점 시스템", layout="wide")
+st.title("🎓 Interactiion AI 채점 시스템")
 
 llm = ChatOpenAI(
     openai_api_key=st.secrets["openai"]["API_KEY"],
