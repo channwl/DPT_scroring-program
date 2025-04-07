@@ -312,14 +312,103 @@ elif st.session_state.step == 3:
         if st.button("STEP 1로 이동"):
             st.session_state.step = 1
 
-# -------------------- STEP 4: 전체 채점 및 하이라이팅 --------------------
+
+# ----------------------------------------------------------------------------
+# JSON 추출/파싱 함수
+# ----------------------------------------------------------------------------
+def parse_grading_json(gpt_response: str) -> dict:
+    """
+    LLM의 응답에서 ```json ... ``` 부분만 정규식을 사용하여 추출 후 파싱합니다.
+    JSON 부분을 찾지 못하거나 파싱이 실패하면 None을 반환합니다.
+    """
+    pattern = r"```json\s*(\{.*?\})\s*```"
+    match = re.search(pattern, gpt_response, re.DOTALL)
+
+    if not match:
+        # fallback: 중괄호를 직접 찾는 방식
+        # 아래는 단순히 None을 반환하게 해 두었습니다.
+        # 필요하다면 gpt_response에서 가장 처음 나오는 '{' 부터 마지막 '}'까지
+        # substring을 추출하는 로직을 작성할 수도 있습니다.
+        return None
+
+    json_str = match.group(1).strip()
+
+    try:
+        data = json.loads(json_str)
+        return data
+    except Exception:
+        return None
+
+# ----------------------------------------------------------------------------
+# 하이라이팅 함수
+# ----------------------------------------------------------------------------
+def apply_highlight(text: str, evidence_list: list) -> str:
+    """
+    학생 답안에서 평가 근거가 된 부분을 하이라이팅.
+    동일한 근거(evidence)가 여러 번 등장하면 모두 하이라이팅 처리.
+    """
+    highlighted_text = text
+
+    for idx, evidence in enumerate(evidence_list):
+        if evidence:
+            # 각 항목마다 다른 색상 사용 (HSL 색상)
+            hue = (idx * 30) % 360
+            color = f"hsl({hue}, 80%, 85%)"
+            # re.escape로 근거 문자열의 특수문자를 이스케이프
+            escaped_evidence = re.escape(evidence)
+
+            # 모든 등장 위치를 하이라이팅
+            highlighted_text = re.sub(
+                escaped_evidence,
+                f'<span style="background-color: {color}; padding: 2px; border-radius: 3px;">{evidence}</span>',
+                highlighted_text
+            )
+
+    # 줄바꿈 보존
+    highlighted_text = highlighted_text.replace('\n', '<br>')
+    return highlighted_text
+
+# ----------------------------------------------------------------------------
+# 채점 결과 마크다운 테이블 생성 함수
+# ----------------------------------------------------------------------------
+def format_grading_table(data: dict) -> str:
+    """
+    JSON으로부터 채점 결과를 마크다운 테이블로 생성.
+    채점 항목별 정보(criterion, max_score, given_score, explanation)와
+    total_score, feedback를 포함.
+    """
+    grading_details = data.get("grading_details", [])
+    total_score = data.get("total_score", 0)
+    feedback = data.get("feedback", "")
+
+    markdown_table = "| 채점 항목 | 배점 | 부여 점수 | 평가 내용 |\n"
+    markdown_table += "|---------|-----|---------|----------|\n"
+
+    for detail in grading_details:
+        criterion = detail.get("criterion", "")
+        max_score = detail.get("max_score", 0)
+        given_score = detail.get("given_score", 0)
+        explanation = detail.get("explanation", "")
+
+        markdown_table += (
+            f"| {criterion} | {max_score}점 | {given_score}점 | {explanation} |\n"
+        )
+
+    markdown_table += f"\n**총점: {total_score}점**\n\n**피드백:** {feedback}"
+    return markdown_table
+
+# ----------------------------------------------------------------------------
+# STEP4 로직
+# ----------------------------------------------------------------------------
 elif st.session_state.step == 4:
     if st.session_state.problem_text and st.session_state.problem_filename:
         rubric_key = f"rubric_{st.session_state.problem_filename}"
-        
+
         # 피드백이 적용된 수정 기준이 있으면 그것을 사용, 없으면 원본 기준 사용
-        rubric_text = st.session_state.modified_rubrics.get(rubric_key, 
-                      st.session_state.generated_rubrics.get(rubric_key))
+        rubric_text = st.session_state.modified_rubrics.get(
+            rubric_key, 
+            st.session_state.generated_rubrics.get(rubric_key)
+        )
 
         if not rubric_text:
             st.warning("STEP 1에서 채점 기준을 먼저 생성해주세요.")
@@ -329,39 +418,22 @@ elif st.session_state.step == 4:
             st.subheader("📊 채점 기준")
             st.markdown(rubric_text)
 
-            # 하이라이팅 함수 정의
-            def apply_highlight(text, evidence_list):
-                """
-                학생 답안에서 평가 근거가 된 부분을 하이라이팅
-                """
-                highlighted_text = text
-                
-                for idx, evidence in enumerate(evidence_list):
-                    if evidence and evidence in highlighted_text:
-                        # 각 항목마다 다른 색상 사용 (HSL 색상 사용)
-                        hue = (idx * 30) % 360
-                        color = f"hsl({hue}, 80%, 85%)"
-                        highlighted_text = highlighted_text.replace(
-                            evidence,
-                            f'<span style="background-color: {color}; padding: 2px; border-radius: 3px;">{evidence}</span>'
-                        )
-                
-                # 줄바꿈 보존
-                highlighted_text = highlighted_text.replace('\n', '<br>')
-                return highlighted_text
-
+            # [전체 학생 채점 실행] 버튼
             if st.button("📥 전체 학생 채점 실행"):
-                grading_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
+                grading_chain = LLMChain(
+                    llm=llm, 
+                    prompt=PromptTemplate.from_template("{input}")
+                )
                 st.session_state.all_grading_results = []
                 st.session_state.highlighted_results = []
-                
+
                 progress_bar = st.progress(0)
                 total_students = len(st.session_state.student_answers_data)
-                
+
                 with st.spinner("GPT가 전체 학생을 채점 중입니다..."):
                     for i, stu in enumerate(st.session_state.student_answers_data):
                         name, sid, answer = stu["name"], stu["id"], stu["text"]
-                        
+
                         # GPT에게 채점 및 근거 문장 추출 요청
                         prompt = f"""
 다음은 채점 기준입니다:
@@ -386,118 +458,3 @@ elif st.session_state.step == 4:
       "evidence": "학생 답안에서 해당 점수 판단의 근거가 된 실제 문장 또는 구절(정확히 원문에서 추출)"
     }}
   ]
-}}
-```
-
-중요: 
-1. "evidence" 필드에는 반드시 원문에서 실제로 찾을 수 있는 텍스트를 그대로 복사해서 넣어주세요. 추상적인 설명이 아닌 실제 문장이어야 합니다.
-2. 근거를 찾을 수 없는 경우에만 "evidence" 필드를 비워두세요.
-3. 모든 JSON 필드 이름과 구조를 정확히 지켜주세요.
-4. JSON만 반환해주세요. 다른 설명은 필요 없습니다.
-"""
-                        # GPT 호출
-                        result = grading_chain.invoke({"input": prompt})
-                        
-                        try:
-                            # JSON 파싱
-                            json_start = result["text"].find("{")
-                            json_end = result["text"].rfind("}")
-                            if json_start != -1 and json_end != -1:
-                                json_content = result["text"][json_start:json_end+1]
-                                data = json.loads(json_content)
-                                
-                                # 근거 문장 추출
-                                evidence_list = [detail.get("evidence", "") for detail in data.get("grading_details", [])]
-                                
-                                # 하이라이팅 적용
-                                highlighted_answer = apply_highlight(answer, evidence_list)
-                                
-                                # 마크다운 테이블 생성
-                                markdown_table = "| 채점 항목 | 배점 | 부여 점수 | 평가 내용 |\n"
-                                markdown_table += "|---------|-----|---------|----------|\n"
-                                
-                                for detail in data.get("grading_details", []):
-                                    criterion = detail.get("criterion", "")
-                                    max_score = detail.get("max_score", 0)
-                                    given_score = detail.get("given_score", 0)
-                                    explanation = detail.get("explanation", "")
-                                    
-                                    markdown_table += f"| {criterion} | {max_score}점 | {given_score}점 | {explanation} |\n"
-                                
-                                # 총점 추가
-                                total_score = data.get("total_score", 0)
-                                markdown_table += f"\n**총점: {total_score}점**\n\n**피드백:** {data.get('feedback', '')}"
-                                
-                                # 결과 저장
-                                st.session_state.highlighted_results.append({
-                                    "name": name,
-                                    "id": sid,
-                                    "score": total_score,
-                                    "feedback": data.get("feedback", ""),
-                                    "highlighted_text": highlighted_answer,
-                                    "markdown_table": markdown_table,
-                                    "grading_details": data.get("grading_details", [])
-                                })
-                                
-                                # 원본 JSON 응답도 저장
-                                st.session_state.all_grading_results.append({
-                                    "name": name, 
-                                    "id": sid,
-                                    "data": data
-                                })
-                            else:
-                                st.error(f"{name}({sid})의 채점 결과에서 JSON을 찾을 수 없습니다.")
-                                
-                        except Exception as e:
-                            st.error(f"{name}({sid})의 채점 결과 처리 중 오류 발생: {str(e)}")
-                            st.code(result["text"])
-                        
-                        # 진행률 업데이트
-                        progress_bar.progress((i + 1) / total_students)
-                
-                progress_bar.empty()
-                st.success(f"✅ 전체 학생({total_students}명) 채점 완료")
-
-            # 결과 표시 섹션
-            if st.session_state.highlighted_results:
-                st.subheader("📋 전체 학생 채점 결과")
-                
-                # 정렬 옵션
-                sort_options = ["이름순", "학번순", "점수 높은순", "점수 낮은순"]
-                sort_method = st.radio("정렬 방식", sort_options, horizontal=True)
-                
-                # 정렬 적용
-                sorted_results = st.session_state.highlighted_results.copy()
-                if sort_method == "이름순":
-                    sorted_results.sort(key=lambda x: x["name"])
-                elif sort_method == "학번순":
-                    sorted_results.sort(key=lambda x: x["id"])
-                elif sort_method == "점수 높은순":
-                    sorted_results.sort(key=lambda x: x["score"] if x["score"] is not None else -1, reverse=True)
-                elif sort_method == "점수 낮은순":
-                    sorted_results.sort(key=lambda x: x["score"] if x["score"] is not None else float('inf'))
-                
-                # 학생 선택 필터 생성
-                student_options = [(f"{r['name']} ({r['id']}) - {r['score']}점" if r['score'] is not None else f"{r['name']} ({r['id']})")
-                                   for r in sorted_results]
-                selected_student = st.selectbox("🧑‍🎓 학생 선택", ["모든 학생 보기"] + student_options)
-                
-                scores = []
-                
-                # 선택된 학생 또는 모든 학생 결과 표시
-                for r in sorted_results:
-                    student_label = f"{r['name']} ({r['id']}) - {r['score']}점" if r['score'] is not None else f"{r['name']} ({r['id']})"
-                    
-                    if selected_student == "모든 학생 보기" or selected_student == student_label:
-                        st.markdown(f"### ✍️ {r['name']} ({r['id']}) - 총점: {r['score']}점")
-                        
-                        # 마크다운 테이블로 채점 결과 표시
-                        st.markdown(r["markdown_table"])
-                        
-                        with st.expander("🧾 학생 답안 (하이라이팅 표시)", expanded=True):
-                            st.markdown(r["highlighted_text"], unsafe_allow_html=True)
-                        
-                        st.markdown("---")
-                        
-                        if r["score"] is not None:
-                            scores.append(r["score"])
