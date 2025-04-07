@@ -84,7 +84,9 @@ with st.sidebar:
         st.session_state.step = 3
     if st.button("4️⃣ 전체 학생 일괄 채점 + 하이라이팅"):
         st.session_state.step = 4
-
+        
+    st.sidebar.markdown(f"🔍 현재 step: {st.session_state.step}")
+    
     st.markdown("### ✏️ 교수자 피드백")
     st.session_state.feedback_text = st.text_area("채점 기준 수정 피드백", value=st.session_state.feedback_text)
 
