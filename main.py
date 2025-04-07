@@ -316,7 +316,10 @@ elif st.session_state.step == 3:
 if st.session_state.step == 4:
     if st.session_state.problem_text and st.session_state.problem_filename:
         rubric_key = f"rubric_{st.session_state.problem_filename}"
-        rubric_text = st.session_state.generated_rubrics.get(rubric_key)
+        
+        # 피드백이 적용된 수정 기준이 있으면 그것을 사용, 없으면 원본 기준 사용
+        rubric_text = st.session_state.modified_rubrics.get(rubric_key, 
+                      st.session_state.generated_rubrics.get(rubric_key))
 
         if not rubric_text:
             st.warning("STEP 1에서 채점 기준을 먼저 생성해주세요.")
@@ -326,12 +329,40 @@ if st.session_state.step == 4:
             st.subheader("📊 채점 기준")
             st.markdown(rubric_text)
 
+            # 하이라이팅 함수 정의
+            def apply_highlight(text, grading_items):
+                """
+                학생 답안에서 평가 근거가 된 부분을 하이라이팅
+                """
+                highlighted_text = text
+                
+                # 근거 문장들을 찾아서 하이라이팅
+                for item in grading_items:
+                    evidence = item.get("근거문장", "")
+                    if evidence and evidence in highlighted_text:
+                        # 노란색 배경으로 하이라이팅
+                        highlighted_text = highlighted_text.replace(
+                            evidence,
+                            f'<span style="background-color: #FFFF00;">{evidence}</span>'
+                        )
+                
+                # 줄바꿈 보존
+                highlighted_text = highlighted_text.replace('\n', '<br>')
+                return highlighted_text
+
             if st.button("📥 전체 학생 채점 실행"):
                 grading_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
-                st.session_state.highlighted_results.clear()
+                st.session_state.all_grading_results = []
+                st.session_state.highlighted_results = []
+                
+                progress_bar = st.progress(0)
+                total_students = len(st.session_state.student_answers_data)
+                
                 with st.spinner("GPT가 전체 학생을 채점 중입니다..."):
-                    for stu in st.session_state.student_answers_data:
+                    for i, stu in enumerate(st.session_state.student_answers_data):
                         name, sid, answer = stu["name"], stu["id"], stu["text"]
+                        
+                        # GPT에게 채점 및 근거 문장 추출 요청
                         prompt = f"""
 다음은 채점 기준입니다:
 {rubric_text}
@@ -339,53 +370,190 @@ if st.session_state.step == 4:
 아래는 학생 답안입니다:
 {answer}
 
-다음 JSON 포맷으로 채점 결과를 출력하세요:
+채점을 수행하고 각 채점 항목별로 학생이 작성한 답안에서 근거가 된 문장이나 구절을 명확히 추출해주세요.
+답변은 다음 JSON 형식으로 제공해주세요:
+
 ```json
 {{
-  "total_score": 정수,
-  "feedback": "총평",
-  "items": [
-    {{ "항목": "항목명", "배점": 숫자, "점수": 숫자, "평가": "내용", "근거문장": "답안 중 일부 문장" }}
+  "total_score": 점수 총합(정수),
+  "feedback": "전체적인 총평",
+  "grading_details": [
+    {{
+      "criterion": "채점 항목명",
+      "max_score": 해당 항목 배점(정수),
+      "given_score": 부여한 점수(정수),
+      "explanation": "점수 부여 이유에 대한 설명",
+      "evidence": "학생 답안에서 해당 점수 판단의 근거가 된 실제 문장 또는 구절(정확히 원문에서 추출)"
+    }}
   ]
 }}
 ```
-                        """
-                        result = grading_chain.invoke({"input": prompt})
-                        try:
-                            data = json.loads(result["text"])
-                            highlighted = apply_highlight(answer, data.get("items", []))
-                            st.session_state.highlighted_results.append({
-                                "name": name,
-                                "id": sid,
-                                "score": data.get("total_score"),
-                                "feedback": data.get("feedback"),
-                                "highlighted_text": highlighted,
-                                "items": data.get("items")
-                            })
-                        except Exception as e:
-                            st.warning(f"JSON 파싱 실패: {e}")
-                st.success("✅ 전체 학생 채점 완료")
 
-            # 결과 및 분포 표시
+중요: 
+1. "evidence" 필드에는 반드시 원문에서 실제로 찾을 수 있는 텍스트를 그대로 복사해서 넣어주세요. 추상적인 설명이 아닌 실제 문장이어야 합니다.
+2. 근거를 찾을 수 없는 경우에만 "evidence" 필드를 비워두세요.
+3. 모든 JSON 필드 이름과 구조를 정확히 지켜주세요.
+"""
+                        # GPT 호출
+                        result = grading_chain.invoke({"input": prompt})
+                        
+                        try:
+                            # JSON 파싱
+                            json_start = result["text"].find("{")
+                            json_end = result["text"].rfind("}")
+                            if json_start != -1 and json_end != -1:
+                                json_content = result["text"][json_start:json_end+1]
+                                data = json.loads(json_content)
+                                
+                                # 하이라이팅 적용
+                                highlighted_answer = answer
+                                for detail in data.get("grading_details", []):
+                                    evidence = detail.get("evidence", "")
+                                    if evidence and evidence in highlighted_answer:
+                                        # 각 채점 항목에 대한 다른 색상 적용
+                                        color = f"hsl({(hash(detail['criterion']) % 360)}, 80%, 80%)"
+                                        highlighted_answer = highlighted_answer.replace(
+                                            evidence,
+                                            f'<span style="background-color: {color}; padding: 2px; border-radius: 3px;" title="{detail["criterion"]}: {detail["given_score"]}/{detail["max_score"]}점">{evidence}</span>'
+                                        )
+                                
+                                # 줄바꿈 보존
+                                highlighted_answer = highlighted_answer.replace('\n', '<br>')
+                                
+                                # 결과 저장
+                                st.session_state.highlighted_results.append({
+                                    "name": name,
+                                    "id": sid,
+                                    "score": data.get("total_score"),
+                                    "feedback": data.get("feedback"),
+                                    "highlighted_text": highlighted_answer,
+                                    "grading_details": data.get("grading_details")
+                                })
+                                
+                                # 원본 응답도 저장
+                                st.session_state.all_grading_results.append({
+                                    "name": name, 
+                                    "id": sid,
+                                    "data": data
+                                })
+                            else:
+                                st.error(f"{name}({sid})의 채점 결과에서 JSON을 찾을 수 없습니다.")
+                                
+                        except Exception as e:
+                            st.error(f"{name}({sid})의 채점 결과 처리 중 오류 발생: {str(e)}")
+                            st.code(result["text"])
+                        
+                        # 진행률 업데이트
+                        progress_bar.progress((i + 1) / total_students)
+                
+                progress_bar.empty()
+                st.success(f"✅ 전체 학생({total_students}명) 채점 완료")
+
+            # 결과 표시 섹션
             if st.session_state.highlighted_results:
                 st.subheader("📋 전체 학생 채점 결과")
+                
+                # 학생 선택 필터
+                all_students = [(f"{r['name']} ({r['id']}) - {r['score']}점" if r['score'] is not None else f"{r['name']} ({r['id']})")
+                               for r in st.session_state.highlighted_results]
+                selected_student = st.selectbox("🧑‍🎓 학생 선택", ["모든 학생 보기"] + all_students)
+                
                 scores = []
+                
+                # 선택된 학생 또는 모든 학생 결과 표시
                 for r in st.session_state.highlighted_results:
-                    st.markdown(f"### ✍️ {r['name']} ({r['id']}) - 총점: {r['score']}점")
-                    st.markdown(f"🗣️ GPT 피드백: {r['feedback']}")
-                    st.markdown("**🧾 학생 답안 (하이라이팅 표시됨):**", unsafe_allow_html=True)
-                    st.markdown(r["highlighted_text"], unsafe_allow_html=True)
-                    st.markdown("---")
-                    if r["score"]:
-                        scores.append(r["score"])
-
-                if scores:
+                    student_label = f"{r['name']} ({r['id']}) - {r['score']}점" if r['score'] is not None else f"{r['name']} ({r['id']})"
+                    
+                    if selected_student == "모든 학생 보기" or selected_student == student_label:
+                        st.markdown(f"### ✍️ {r['name']} ({r['id']}) - 총점: {r['score']}점")
+                        
+                        with st.expander("📝 채점 세부 내역", expanded=False):
+                            for detail in r.get("grading_details", []):
+                                st.markdown(f"""
+                                **{detail.get('criterion')}** ({detail.get('given_score')}/{detail.get('max_score')}점)  
+                                - 평가: {detail.get('explanation')}  
+                                - 근거: _{detail.get('evidence', '(근거 없음)')}_ 
+                                """)
+                        
+                        st.markdown(f"🗣️ **GPT 피드백:** {r['feedback']}")
+                        
+                        with st.expander("🧾 학생 답안 (하이라이팅 표시)", expanded=True):
+                            st.markdown(r["highlighted_text"], unsafe_allow_html=True)
+                        
+                        st.markdown("---")
+                        
+                        if r["score"] is not None:
+                            scores.append(r["score"])
+                
+                # 점수 분포 시각화 (모든 학생 선택 시에만)
+                if scores and selected_student == "모든 학생 보기":
                     st.subheader("📊 점수 분포")
-                    fig, ax = plt.subplots()
-                    ax.hist(scores, bins=range(min(scores), max(scores)+2), edgecolor='black', align='left')
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    
+                    # 점수 범위에 맞게 bins 설정
+                    min_score = min(scores)
+                    max_score = max(scores)
+                    bins = range(min_score, max_score + 2)
+                    
+                    # 히스토그램 생성
+                    n, bins, patches = ax.hist(scores, bins=bins, edgecolor='black', alpha=0.7, align='left')
+                    
+                    # 평균선 추가
+                    mean_score = sum(scores) / len(scores)
+                    ax.axvline(mean_score, color='red', linestyle='dashed', linewidth=1)
+                    ax.text(mean_score + 0.5, max(n) * 0.9, f'평균: {mean_score:.1f}점', color='red')
+                    
+                    # 축 및 제목 설정
                     ax.set_xlabel("점수")
                     ax.set_ylabel("학생 수")
                     ax.set_title("GPT 채점 점수 분포")
+                    ax.set_xticks(range(min_score, max_score + 1))
+                    ax.grid(axis='y', alpha=0.3)
+                    
+                    # 그래프 표시
                     st.pyplot(fig)
+                    
+                    # 기본 통계 정보 표시
+                    col1, col2, col3, col4 = st.columns(4)
+                    col1.metric("평균 점수", f"{mean_score:.1f}점")
+                    col2.metric("최고 점수", f"{max_score}점")
+                    col3.metric("최저 점수", f"{min_score}점")
+                    col4.metric("총 학생 수", f"{len(scores)}명")
+                    
+                    # 엑셀 다운로드 기능
+                    excel_data = []
+                    for r in st.session_state.highlighted_results:
+                        if r["score"] is not None:
+                            row = {
+                                "학번": r["id"],
+                                "이름": r["name"],
+                                "총점": r["score"],
+                                "피드백": r["feedback"]
+                            }
+                            # 각 채점 항목별 점수 추가
+                            for detail in r.get("grading_details", []):
+                                criterion = detail.get("criterion", "")
+                                score = detail.get("given_score", 0)
+                                row[criterion] = score
+                            excel_data.append(row)
+                    
+                    if excel_data:
+                        import pandas as pd
+                        df = pd.DataFrame(excel_data)
+                        
+                        # 엑셀 파일로 변환
+                        buffer = io.BytesIO()
+                        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                            df.to_excel(writer, sheet_name='성적표', index=False)
+                        
+                        # 다운로드 버튼
+                        st.download_button(
+                            label="📊 성적표 엑셀 다운로드",
+                            data=buffer.getvalue(),
+                            file_name="AI_채점_결과.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
     else:
         st.warning("STEP 1에서 문제 업로드가 필요합니다.")
+        if st.button("STEP 1로 이동"):
+            st.session_state.step = 1
