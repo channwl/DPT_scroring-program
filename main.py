@@ -37,6 +37,7 @@ def initialize_session_state():
         "last_grading_result": None,
         "last_selected_student": None,
         "all_grading_results": []
+        "highlighted_results": []
     }
     for key, value in defaults.items():
         if key not in st.session_state:
