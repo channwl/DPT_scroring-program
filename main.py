@@ -1,5 +1,3 @@
-# ✅ 최종 통합 코드: Explainable Grading System (Step 4 포함)
-
 import streamlit as st
 import PyPDF2
 import random
@@ -35,6 +33,8 @@ def initialize():
         "feedback_text": "",
         "modified_rubrics": {},
         "highlighted_results": [],
+        "last_grading_result": None,
+        "last_selected_student": None,
         "all_grading_results": []
     }
     for k, v in keys.items():
@@ -84,9 +84,7 @@ with st.sidebar:
         st.session_state.step = 3
     if st.button("4️⃣ 전체 학생 일괄 채점 + 하이라이팅"):
         st.session_state.step = 4
-        
-    st.sidebar.markdown(f"🔍 현재 step: {st.session_state.step}")
-    
+
     st.markdown("### ✏️ 교수자 피드백")
     st.session_state.feedback_text = st.text_area("채점 기준 수정 피드백", value=st.session_state.feedback_text)
 
@@ -97,6 +95,136 @@ with st.sidebar:
 **STEP 3:** 교수자 피드백 → 기준 수정  
 **STEP 4:** 전체 학생 자동 채점 + 하이라이팅 + 점수 분포
 """)
+
+# -------------------- STEP 1: 문제 업로드 및 채점 기준 생성 --------------------
+if st.session_state.step == 1:
+    problem_pdf = st.file_uploader("📄 문제 PDF 업로드", type="pdf")
+    if problem_pdf:
+        file_bytes = problem_pdf.read()
+        st.session_state.problem_pdf_bytes = file_bytes
+        st.session_state.problem_filename = problem_pdf.name
+        text = extract_text_from_pdf(file_bytes)
+        st.session_state.problem_text = text
+        rubric_key = f"rubric_{problem_pdf.name}"
+
+        st.subheader("📃 문제 내용")
+        st.write(text)
+
+        if rubric_key not in st.session_state.generated_rubrics:
+            prompt = f"""
+다음 문제에 대한 채점 기준을 작성해 주세요 (반드시 **한글**로 작성):
+
+문제: {text}
+
+요구사항:
+1. 표 형식으로 작성해주세요 (정확히 '| 채점 항목 | 배점 | 세부 기준 |' 형식의 마크다운 표를 사용하세요)
+2. 각 항목의 세부 기준은 구체적으로 작성해주세요
+3. 설명은 반드시 **한글**로 작성해야 하며, 영어 혼용 없이 작성해주세요
+4. 표 아래에 **배점 총합**도 함께 작성해주세요
+5. 반드시 마크다운 표 문법을 정확히 사용해주세요
+            """
+            if st.button("📐 채점 기준 생성"):
+                st.session_state.rubric_memory.clear()
+                rubric_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"), memory=st.session_state.rubric_memory)
+                with st.spinner("GPT가 채점 기준을 생성 중입니다..."):
+                    result = rubric_chain.invoke({"input": prompt})
+                    st.session_state.generated_rubrics[rubric_key] = result["text"]
+                    st.success("✅ 채점 기준 생성 완료")
+
+        if rubric_key in st.session_state.generated_rubrics:
+            st.subheader("📊 채점 기준")
+            st.markdown(st.session_state.generated_rubrics[rubric_key])
+
+# -------------------- STEP 2: 무작위 채점 --------------------
+elif st.session_state.step == 2:
+    rubric_key = f"rubric_{st.session_state.problem_filename}"
+    rubric_text = st.session_state.generated_rubrics.get(rubric_key)
+
+    if not st.session_state.problem_text:
+        st.warning("STEP 1에서 문제를 먼저 업로드해주세요.")
+    else:
+        st.subheader("📃 문제 내용")
+        st.write(st.session_state.problem_text)
+
+        if rubric_text:
+            st.subheader("📊 채점 기준")
+            st.markdown(rubric_text)
+
+        student_pdfs = st.file_uploader("📥 학생 답안 PDF 업로드 (여러 개 가능)", type="pdf", accept_multiple_files=True)
+
+        if student_pdfs:
+            st.session_state.student_answers_data.clear()
+            answers = []
+            for file in student_pdfs:
+                file.seek(0)
+                text = extract_text_from_pdf(file.read())
+                name, sid = extract_info_from_filename(file.name)
+                if len(text.strip()) > 20:
+                    st.session_state.student_answers_data.append({"name": name, "id": sid, "text": text})
+                    answers.append(text)
+
+            if st.button("🎯 무작위 채점 실행") and rubric_text:
+                idx = random.randint(0, len(st.session_state.student_answers_data) - 1)
+                stu = st.session_state.student_answers_data[idx]
+                answer = stu["text"]
+                prompt = f"""
+다음은 채점 기준입니다:
+{rubric_text}
+
+그리고 아래는 학생 답안입니다:
+{answer}
+
+이 기준에 따라 마크다운 표로 채점 결과를 작성해 주세요:
+| 채점 항목 | 배점 | GPT 추천 점수 | 세부 평가 |
+|---------|-----|------------|---------|
+표 아래에 총점과 피드백도 함께 작성해주세요.
+                """
+                grading_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
+                with st.spinner("GPT가 채점 중입니다..."):
+                    result = grading_chain.invoke({"input": prompt})
+                    st.session_state.last_grading_result = result["text"]
+                    st.session_state.last_selected_student = stu
+                    st.success("✅ 채점 완료")
+
+    if st.session_state.last_grading_result and st.session_state.last_selected_student:
+        s = st.session_state.last_selected_student
+        st.subheader(f"📋 채점 결과 - {s['name']} ({s['id']})")
+        st.markdown(st.session_state.last_grading_result)
+
+# -------------------- STEP 3: 피드백 기반 채점 기준 수정 --------------------
+elif st.session_state.step == 3:
+    rubric_key = f"rubric_{st.session_state.problem_filename}"
+    if not st.session_state.problem_text:
+        st.warning("STEP 1에서 문제를 먼저 업로드해주세요.")
+    elif rubric_key not in st.session_state.generated_rubrics:
+        st.warning("STEP 1에서 채점 기준을 먼저 생성해주세요.")
+    else:
+        st.subheader("📊 원본 채점 기준")
+        st.markdown(st.session_state.generated_rubrics[rubric_key])
+        if st.button("♻️ 피드백 반영"):
+            feedback = st.session_state.feedback_text
+            prompt = f"""
+기존 채점 기준:
+{st.session_state.generated_rubrics[rubric_key]}
+
+피드백:
+{feedback}
+
+수정된 채점 기준을 마크다운 표로 다시 작성해주세요.
+| 채점 항목 | 배점 | 세부 기준 |
+|---------|-----|---------|
+표 아래에 총점도 표시해주세요.
+            """
+            feedback_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
+            with st.spinner("GPT가 기준을 수정 중입니다..."):
+                updated = feedback_chain.invoke({"input": prompt})
+                st.session_state.modified_rubrics[rubric_key] = updated["text"]
+                st.success("✅ 채점 기준 수정 완료")
+
+        if rubric_key in st.session_state.modified_rubrics:
+            st.subheader("🆕 수정된 채점 기준")
+            st.markdown(st.session_state.modified_rubrics[rubric_key])
+
 
 # -------------------- STEP 4: 전체 채점 및 하이라이팅 --------------------
 if st.session_state.step == 4:
