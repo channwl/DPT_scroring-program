@@ -309,3 +309,67 @@ elif st.session_state.step == 3:
         st.warning("먼저 STEP 1에서 문제를 업로드해주세요.")
         if st.button("STEP 1로 이동"):
             st.session_state.step = 1
+            
+# STEP 4 - 전체 학생 일괄 채점
+if st.session_state.step == 4:
+    if st.session_state.problem_text and st.session_state.problem_filename:
+        rubric_key = f"rubric_{st.session_state.problem_filename}"
+
+        if rubric_key not in st.session_state.generated_rubrics:
+            st.warning("STEP 1에서 채점 기준을 먼저 생성해주세요.")
+        elif not st.session_state.student_answers_data:
+            st.warning("STEP 2에서 학생 답안을 먼저 업로드해주세요.")
+        else:
+            st.subheader("📊 채점 기준")
+            st.markdown(st.session_state.generated_rubrics[rubric_key])
+
+            if st.button("📥 전체 학생 채점 실행"):
+                grading_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
+                all_results = []
+                with st.spinner("GPT가 전체 학생을 채점 중입니다..."):
+                    for stu in st.session_state.student_answers_data:
+                        name, sid, answer = stu["name"], stu["id"], stu["text"]
+                        prompt = f"""다음은 채점 기준입니다:
+{st.session_state.generated_rubrics[rubric_key]}
+
+그리고 아래는 학생 답안입니다:
+{answer}
+
+이 기준에 따라 채점 표를 작성해 주세요:
+반드시 다음과 같은 마크다운 표 형식을 사용하세요:
+
+| 채점 항목 | 배점 | GPT 추천 점수 | 세부 평가 |
+|---------|-----|------------|---------|
+
+표 아래에 총점과 간단한 피드백도 작성해주세요."""
+                        result = grading_chain.invoke({"input": prompt})
+                        all_results.append({
+                            "name": name,
+                            "id": sid,
+                            "grading": result["text"]
+                        })
+                st.session_state.all_grading_results = all_results
+                st.success("✅ 전체 학생 채점 완료")
+
+            # 결과 표시
+            if st.session_state.all_grading_results:
+                st.subheader("📋 전체 학생 채점 결과")
+                for r in st.session_state.all_grading_results:
+                    st.markdown(f"### ✍️ {r['name']} ({r['id']})")
+                    st.markdown(r["grading"])
+                    st.markdown("---")
+
+                # 점수 분포 시각화
+                scores = [extract_total_score(r["grading"]) for r in st.session_state.all_grading_results if extract_total_score(r["grading"]) is not None]
+                if scores:
+                    st.subheader("📊 GPT 채점 점수 분포")
+                    fig, ax = plt.subplots()
+                    ax.hist(scores, bins=range(min(scores), max(scores)+2), edgecolor='black', align='left')
+                    ax.set_xlabel("점수")
+                    ax.set_ylabel("학생 수")
+                    ax.set_title("GPT 채점 점수 분포")
+                    st.pyplot(fig)
+                else:
+                    st.info("총점을 추출할 수 있는 학생이 없습니다.")
+    else:
+        st.warning("STEP 1에서 문제 업로드가 필요합니다.")
