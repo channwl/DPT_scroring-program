@@ -328,6 +328,7 @@ def generate_grading_prompt(answer, rubric_text):
 
 이 기준에 따라 채점 표를 작성해 주세요. 반드시 정확한 마크다운 표 형식을 따르되,
 각 항목에 대해 채점 점수뿐 아니라, 채점 판단의 **직접적인 문장 근거**도 함께 작성해 주세요.
+그리고,
 
 | 채점 항목 | 배점 | 부여 점수 | 평가 근거 | 근거 문장 |
 |----------|-----|-----------|-----------|------------|
@@ -465,13 +466,22 @@ if st.session_state.step == 4:
 
             for r in sorted_results:
                 label = f"{r['name']} ({r['id']}) - {r['score']}점"
-                if selected_student == "모든 학생 보기" or selected_student == label:
-                    st.markdown(f"### ✍️ {r['name']} ({r['id']}) - 총점: {r['score']}점")
+    
+            if selected_student == "모든 학생 보기" or selected_student == label:
+                st.markdown(f"### ✍️ {r['name']} ({r['id']}) - 총점: {r['score']}점")
+
+                # 💡 하이라이팅된 답안을 메인으로 보여주기
+                st.markdown("**📑 하이라이팅된 답안 (채점 근거 문장 강조)**", unsafe_allow_html=True)
+                st.markdown(r["highlighted_text"], unsafe_allow_html=True)
+                st.caption("💡 하이라이트된 문장은 GPT가 채점 시 판단 근거로 삼은 문장입니다.")
+
+                # 📊 채점 표는 접어서 보기
+                with st.expander("📋 채점 요약표 보기"):
                     st.markdown(r["markdown_table"])
-                    tabs = st.tabs(["🔍 하이라이팅된 답안", "📝 원본 답안"])
-                    with tabs[0]:
-                        st.markdown(r["highlighted_text"], unsafe_allow_html=True)
-                        st.info("💡 하이라이트된 문장 위에 마우스를 올리면 평가 항목이 나타납니다.")
-                    with tabs[1]:
-                        st.text_area(f"원본 답안 - {r['name']} ({r['id']})", value=r["text"], height=400, disabled=True)
-                    st.markdown("---")
+
+                # ✏️ 원본 답안도 선택적으로 확인 가능
+                with st.expander("📝 원본 답안 보기"):
+                    st.text_area(f"원본 답안 - {r['name']} ({r['id']})", value=r["text"], height=300, disabled=True)
+
+                st.markdown("---")
+
