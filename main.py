@@ -440,7 +440,7 @@ elif st.session_state.step == 4:
                         feedback = feedback_match.group(1)
                     
                     # 하이라이팅 적용
-                    highlighted_text = apply_highlight(answer, evidence_sentences)
+                    highlighted_text = apply_highlight_fuzzy(answer, evidence_sentences)
                     
                     # 결과 저장
                     st.session_state.highlighted_results.append({
