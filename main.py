@@ -49,26 +49,28 @@ initialize_session_state()
 prompt_template = PromptTemplate.from_template("{history}\n{input}")
 rubric_chain = LLMChain(llm=llm, prompt=prompt_template, memory=st.session_state.rubric_memory)
 
+
+# -------------------------------
 # PDF 텍스트 추출 함수
-def process_student_pdfs(pdf_files):
-    answers, info = [], []
-    for file in pdf_files:
-        file.seek(0)
-        file_bytes = file.read()
+# -------------------------------
+def extract_text_from_pdf(pdf_data):
+    if isinstance(pdf_data, bytes):
+        pdf_stream = io.BytesIO(pdf_data)
+    else:
+        pdf_stream = io.BytesIO(pdf_data.read())
 
-        # 텍스트 추출 후 문단 정리까지!
-        text = extract_text_from_pdf(io.BytesIO(file_bytes))
-        text = clean_text_postprocess(text)
+    text = ""
+    with pdfplumber.open(pdf_stream) as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
 
-        name, sid = extract_info_from_filename(file.name)
-        if len(text.strip()) > 20:
-            answers.append(text)
-            info.append({'name': name, 'id': sid, 'text': text})
+    return text
 
-    st.session_state.student_answers_data = info
-    return answers, info
-
-#전처리
+# -------------------------------
+# 전처리: 문단 정리 및 불필요한 줄 제거
+# -------------------------------
 def clean_text_postprocess(text):
     lines = text.split('\n')
     cleaned = []
@@ -93,30 +95,24 @@ def clean_text_postprocess(text):
 
     return "\n".join(cleaned)
 
-
-# 파일명에서 이름/학번 추출
-def extract_info_from_filename(filename):
-    base_filename = os.path.splitext(os.path.basename(filename))[0]
-    id_match = re.search(r'\d{6,10}', base_filename)
-    student_id = id_match.group() if id_match else "UnknownID"
-    name_candidates = [part for part in re.findall(r'[가-힣]{2,5}', base_filename) if part not in student_id]
-    exclude_words = {"기말", "중간", "과제", "시험", "수업", "레포트", "제출", "답안"}
-    for name in name_candidates:
-        if name not in exclude_words:
-            return name, student_id
-    return "UnknownName", student_id
-
-# 학생 PDF 처리
+# -------------------------------
+# 학생 PDF 처리 함수
+# -------------------------------
 def process_student_pdfs(pdf_files):
     answers, info = [], []
     for file in pdf_files:
         file.seek(0)
         file_bytes = file.read()
+
+        # 텍스트 추출 후 문단 정리까지!
         text = extract_text_from_pdf(io.BytesIO(file_bytes))
+        text = clean_text_postprocess(text)
+
         name, sid = extract_info_from_filename(file.name)
         if len(text.strip()) > 20:
             answers.append(text)
             info.append({'name': name, 'id': sid, 'text': text})
+
     st.session_state.student_answers_data = info
     return answers, info
 
