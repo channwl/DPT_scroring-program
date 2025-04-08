@@ -113,7 +113,7 @@ def extract_total_score(grading_text):
 from difflib import get_close_matches
 import html
 
-def apply_highlight_fuzzy_lines(text, evidences, threshold=0.75):
+def apply_highlight_fuzzy(text, evidences, threshold=0.75):
     lines = text.split('\n')
     used_indices = set()
     html_lines = []
@@ -133,7 +133,7 @@ def apply_highlight_fuzzy_lines(text, evidences, threshold=0.75):
                     break
         if not matched:
             html_lines.append(html.escape(line))
-    
+
     return "<br>".join(html_lines)
 
     # 전처리: 문단을 줄 단위로 쪼갬
