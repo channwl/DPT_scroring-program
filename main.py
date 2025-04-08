@@ -344,22 +344,33 @@ def generate_grading_prompt(answer, rubric_text):
 
 # ✅ GPT 결과에서 마크다운 표 파싱 함수
 def parse_markdown_grading_table(text):
+
+    # 1. 마크다운 표 추출
     table_match = re.search(r"\| *채점 항목 *\|.*?\n(\|.*?\n)+", text, re.DOTALL)
     if not table_match:
         raise ValueError("마크다운 표를 찾을 수 없습니다.")
 
     table_text = table_match.group()
-    lines = [line.strip() for line in table_text.strip().split('\n') if line.strip() and not re.match(r'^\|[- ]+\|$', line)]
-    csv_text = '\n'.join([','.join([cell.strip() for cell in line.strip('|').split('|')]) for line in lines])
 
+    # 2. 헤더 구분선 제거 및 줄 정리
+    lines = [line.strip() for line in table_text.strip().split('\n')
+             if line.strip() and not re.match(r'^\|[- ]+\|$', line)]
+
+    # 3. 표를 CSV 텍스트로 변환
+    csv_text = '\n'.join([','.join([cell.strip() for cell in line.strip('|').split('|')])
+                          for line in lines])
+
+    # 4. pandas를 이용한 안정적 파싱
     try:
         df = pd.read_csv(StringIO(csv_text), quotechar='"', engine="python")
     except Exception as e:
-        raise ValueError(f"CSV 파싱 실패: {e}\n문제 있는 CSV:\n{csv_text}")
+        raise ValueError(f"CSV 파싱 실패: {e}\n\n⚠️ 문제 있는 표 원본:\n{csv_text}")
 
+    # 5. 총점 추출
     total_score_match = re.search(r"총점[:：]?\s*(\d+)\s*점", text)
     total_score = int(total_score_match.group(1)) if total_score_match else None
 
+    # 6. 총평 추출
     feedback_match = re.search(r"총평[:：]?\s*(.+)", text)
     feedback = feedback_match.group(1).strip() if feedback_match else ""
 
