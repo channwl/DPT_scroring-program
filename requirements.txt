@@ -5,5 +5,7 @@ openai>=1.0.0
 tiktoken
 streamlit
 PyPDF2
-matplotlib
+pandas
+regex
+python-dotenv
 
