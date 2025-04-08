@@ -150,11 +150,21 @@ def extract_total_score(grading_text):
     match = re.search(r'총점[:：]?\s*(\d+)\s*점', grading_text)
     return int(match.group(1)) if match else None
 
-# 하이라이팅 함수 - 단순화
 from difflib import get_close_matches
 import html
 
 def apply_highlight_fuzzy(text, evidences, threshold=0.75):
+    """
+    학생 답안에서 증거 문장을 fuzzy하게 매칭하여 하이라이팅하는 함수
+
+    Args:
+        text (str): 전체 학생 답안 텍스트
+        evidences (list of str): 채점 기준에서 추출된 증거 문장들
+        threshold (float): 유사도 매칭 기준 (0~1)
+
+    Returns:
+        str: HTML 형식으로 하이라이팅된 텍스트
+    """
     lines = text.split('\n')
     used_indices = set()
     html_lines = []
@@ -163,61 +173,19 @@ def apply_highlight_fuzzy(text, evidences, threshold=0.75):
         matched = False
         for idx, evidence in enumerate(evidences):
             matches = get_close_matches(evidence.strip(), [line.strip()], n=1, cutoff=threshold)
-            if matches:
-                if idx not in used_indices:
-                    used_indices.add(idx)
-                    color = ["#FFD6D6", "#D6FFD6", "#D6D6FF", "#FFFFD6", "#FFD6FF", "#D6FFFF"][idx % 6]
-                    safe_line = html.escape(line)
-                    highlighted = f'<span style="background-color:{color}; padding:2px; border-radius:3px;">{safe_line}</span>'
-                    html_lines.append(highlighted)
-                    matched = True
-                    break
+            if matches and idx not in used_indices:
+                used_indices.add(idx)
+                color = ["#FFD6D6", "#D6FFD6", "#D6D6FF", "#FFFFD6", "#FFD6FF", "#D6FFFF"][idx % 6]
+                safe_line = html.escape(line)
+                highlighted = f'<span style="background-color:{color}; padding:2px; border-radius:3px;">{safe_line}</span>'
+                html_lines.append(highlighted)
+                matched = True
+                break
         if not matched:
             html_lines.append(html.escape(line))
 
     return "<br>".join(html_lines)
 
-    # 전처리: 문단을 줄 단위로 쪼갬
-    lines = text.split('\n')
-    highlighted_lines = []
-
-    for line in lines:
-        highlighted = False
-        for idx, evidence in enumerate(evidences):
-            ratio = SequenceMatcher(None, evidence.strip(), line.strip()).ratio()
-            if ratio >= threshold:
-                color = ["#FFD6D6", "#D6FFD6", "#D6D6FF", "#FFFFD6", "#FFD6FF", "#D6FFFF"][idx % 6]
-                safe_line = html.escape(line)
-                highlighted_line = f'<span style="background-color:{color}; padding:2px; border-radius:3px;">{safe_line}</span>'
-                highlighted_lines.append(highlighted_line)
-                highlighted = True
-                break
-        if not highlighted:
-            highlighted_lines.append(html.escape(line))
-
-    return '<br>'.join(highlighted_lines)
-    
-    # HTML 이스케이프 처리
-    html_text = html.escape(text).replace('\n', '<br>')
-    
-    # 각 증거에 대해 하이라이팅
-    for idx, evidence in enumerate(evidences):
-        if not evidence or len(evidence.strip()) < 5:
-            continue
-            
-        # 색상 순환 (부드러운 파스텔 색상)
-        colors = ["#FFD6D6", "#D6FFD6", "#D6D6FF", "#FFFFD6", "#FFD6FF", "#D6FFFF"]
-        color = colors[idx % len(colors)]
-        
-        # 증거 문장을 정규표현식으로 안전하게 찾기 위해 이스케이프
-        safe_evidence = re.escape(html.escape(evidence.strip()))
-        
-        # 문장 하이라이팅
-        pattern = f"({safe_evidence})"
-        replacement = f'<span style="background-color:{color}; padding:2px; border-radius:3px;">{evidence}</span>'
-        html_text = re.sub(pattern, replacement, html_text)
-    
-    return html_text
 
 # 사이드바
 with st.sidebar:
