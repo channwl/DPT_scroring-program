@@ -95,6 +95,20 @@ def clean_text_postprocess(text):
 
     return "\n".join(cleaned)
 
+
+#파일명 추출
+def extract_info_from_filename(filename):
+    base_filename = os.path.splitext(os.path.basename(filename))[0]
+    id_match = re.search(r'\d{6,10}', base_filename)
+    student_id = id_match.group() if id_match else "UnknownID"
+    name_candidates = [part for part in re.findall(r'[가-힣]{2,5}', base_filename) if part not in student_id]
+    exclude_words = {"기말", "중간", "과제", "시험", "수업", "레포트", "제출", "답안"}
+    for name in name_candidates:
+        if name not in exclude_words:
+            return name, student_id
+    return "UnknownName", student_id
+
+
 # -------------------------------
 # 학생 PDF 처리 함수
 # -------------------------------
