@@ -8,7 +8,7 @@ from langchain.chains import LLMChain
 from langchain.memory import ConversationSummaryMemory
 from langchain_core.prompts import PromptTemplate
 import html
-import fitz
+import pdfplumber
 
 # 페이지 설정
 st.set_page_config(page_title="AI 채점 시스템", layout="wide")
@@ -57,11 +57,13 @@ def extract_text_from_pdf(pdf_data):
         pdf_stream = io.BytesIO(pdf_data.read())
 
     text = ""
-    with fitz.open(stream=pdf_stream, filetype="pdf") as doc:
-        for page in doc:
-            text += page.get_text()
-
+    with pdfplumber.open(pdf_stream) as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
     return text
+
 
 
 # 파일명에서 이름/학번 추출
