@@ -433,7 +433,20 @@ if st.session_state.step == 4:
             st.success(f"✅ 전체 학생({total_students}명) 채점 완료")
 
         if st.session_state.highlighted_results:
-            st.subheader("📋 전체 학생 채점 결과")
+            st.subheader("📋 전체 학생 채점 결과 (하이라이팅 포함)")
+            for r in sorted_results:
+                st.markdown(f"### ✍️ {r['name']} ({r['id']}) - 총점: {r['score']}점")
+                cols = st.columns([1, 2])
+                with cols[0]:
+                    st.markdown("**📊 채점 요약표**")
+                    st.markdown(r["markdown_table"])
+                with cols[1]:
+                    st.markdown("**🔍 하이라이팅된 답안**")
+                    st.markdown(r["highlighted_text"], unsafe_allow_html=True)
+                    st.caption("💡 하이라이트된 문장 위에 마우스를 올리면 평가 항목이 나타납니다.")
+    
+                st.markdown("---")
+
             sort_options = ["이름순", "학번순", "점수 높은순", "점수 낮은순"]
             sort_method = st.radio("정렬 방식", sort_options, horizontal=True)
 
