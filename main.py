@@ -50,31 +50,47 @@ prompt_template = PromptTemplate.from_template("{history}\n{input}")
 rubric_chain = LLMChain(llm=llm, prompt=prompt_template, memory=st.session_state.rubric_memory)
 
 # PDF 텍스트 추출 함수
-def extract_text_from_pdf(pdf_data):
-    if isinstance(pdf_data, bytes):
-        pdf_stream = io.BytesIO(pdf_data)
-    else:
-        pdf_stream = io.BytesIO(pdf_data.read())
+def process_student_pdfs(pdf_files):
+    answers, info = [], []
+    for file in pdf_files:
+        file.seek(0)
+        file_bytes = file.read()
 
-    text = ""
-    with pdfplumber.open(pdf_stream) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + "\n"
-    return text
+        # 텍스트 추출 후 문단 정리까지!
+        text = extract_text_from_pdf(io.BytesIO(file_bytes))
+        text = clean_text_postprocess(text)
+
+        name, sid = extract_info_from_filename(file.name)
+        if len(text.strip()) > 20:
+            answers.append(text)
+            info.append({'name': name, 'id': sid, 'text': text})
+
+    st.session_state.student_answers_data = info
+    return answers, info
 
 #전처리
 def clean_text_postprocess(text):
     lines = text.split('\n')
     cleaned = []
+    prev_blank = True  # 문단 시작 여부 체크용
+
     for line in lines:
-        # 불필요한 줄 제거: 페이지 번호, 과제 이름, 학번 줄 등
+        line = line.strip()
+        # 스킵할 줄: 페이지 번호, 과제 제목, 학번 줄 등
         if re.search(r'DIGB226|Final Take-Home Exam|^\s*-\s*\d+\s*-$', line):
             continue
-        if re.search(r'^\d{9,10}\s*[\uAC00-\uD7A3]+$', line):  # 학번 + 이름 줄
+        if re.search(r'^\d{9,10}\s*[\uAC00-\uD7A3]+$', line):
             continue
-        cleaned.append(line.strip())
+        if not line:
+            prev_blank = True
+            continue
+
+        # 새 문단 시작 시 빈 줄 추가
+        if prev_blank:
+            cleaned.append("")  # 빈 줄 넣기
+        cleaned.append(line)
+        prev_blank = False
+
     return "\n".join(cleaned)
 
 
