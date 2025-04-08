@@ -453,5 +453,11 @@ if st.session_state.step == 4:
                             st.markdown(r["highlighted_text"], unsafe_allow_html=True)
                             st.info("💡 하이라이트된 부분 위에 마우스를 올리면 해당 채점 항목을 볼 수 있습니다.")
                         with tabs[1]:
-                            st.text_area("원본 답안", value=r.get("text", ""), height=400, disabled=True)
+                            st.text_area(
+        f"원본 답안 - {r['name']} ({r['id']})",
+        value=r.get("text", ""),
+        height=400,
+        disabled=True,
+        key=f"text_area_{r['id']}"
+    )
                         st.markdown("---")
