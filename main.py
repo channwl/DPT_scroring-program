@@ -1,5 +1,4 @@
 import streamlit as st
-import PyPDF2
 import random
 import re
 import io
@@ -9,6 +8,7 @@ from langchain.chains import LLMChain
 from langchain.memory import ConversationSummaryMemory
 from langchain_core.prompts import PromptTemplate
 import html
+import fitz
 
 # 페이지 설정
 st.set_page_config(page_title="AI 채점 시스템", layout="wide")
@@ -51,8 +51,18 @@ rubric_chain = LLMChain(llm=llm, prompt=prompt_template, memory=st.session_state
 
 # PDF 텍스트 추출 함수
 def extract_text_from_pdf(pdf_data):
-    reader = PyPDF2.PdfReader(io.BytesIO(pdf_data) if isinstance(pdf_data, bytes) else io.BytesIO(pdf_data.read()))
-    return "".join([page.extract_text() or "" for page in reader.pages])
+    if isinstance(pdf_data, bytes):
+        pdf_stream = io.BytesIO(pdf_data)
+    else:
+        pdf_stream = io.BytesIO(pdf_data.read())
+
+    text = ""
+    with fitz.open(stream=pdf_stream, filetype="pdf") as doc:
+        for page in doc:
+            text += page.get_text()
+
+    return text
+
 
 # 파일명에서 이름/학번 추출
 def extract_info_from_filename(filename):
