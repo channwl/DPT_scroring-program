@@ -130,6 +130,21 @@ def process_student_pdfs(pdf_files):
     st.session_state.student_answers_data = info
     return answers, info
 
+#들여쓰기 처리
+def apply_indentation(text):
+    lines = text.split('\n')
+    html_lines = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            html_lines.append("<br>")
+            continue
+        if re.match(r'^\d+(\.\d+)*\s', line):  # 1. / 1.1 / 2. 같은 제목
+            html_lines.append(f"<p style='margin-bottom: 5px; font-weight: bold;'>{html.escape(line)}</p>")
+        else:
+            html_lines.append(f"<p style='padding-left: 20px; margin: 0;'>{html.escape(line)}</p>")
+    return "\n".join(html_lines)
+
 # 총점 추출 함수
 def extract_total_score(grading_text):
     match = re.search(r'총점[:：]?\s*(\d+)\s*점', grading_text)
@@ -566,4 +581,7 @@ elif st.session_state.step == 4:
                         st.markdown(result["grading_result"])
                     
                     with tab3:
-                        st.text_area("원본 답안", result["original_text"], height=300)
+                        st.markdown("**📄 문단 구조로 정리된 답안**")
+                        formatted = apply_indentation(result["original_text"])
+                        st.markdown(formatted, unsafe_allow_html=True)
+
