@@ -4,17 +4,11 @@ import random
 import re
 import io
 import os
-import json
-import csv
-import matplotlib.pyplot as plt
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.memory import ConversationSummaryMemory
 from langchain_core.prompts import PromptTemplate
 import html
-import pandas as pd
-from io import StringIO
-from difflib import get_close_matches
 
 # 페이지 설정
 st.set_page_config(page_title="AI 채점 시스템", layout="wide")
@@ -91,6 +85,36 @@ def extract_total_score(grading_text):
     match = re.search(r'총점[:：]?\s*(\d+)\s*점', grading_text)
     return int(match.group(1)) if match else None
 
+# 하이라이팅 함수 - 단순화
+def apply_highlight(text, evidences):
+    """
+    텍스트에서 증거 문장을 찾아 하이라이팅합니다.
+    """
+    if not evidences:
+        return text
+    
+    # HTML 이스케이프 처리
+    html_text = html.escape(text).replace('\n', '<br>')
+    
+    # 각 증거에 대해 하이라이팅
+    for idx, evidence in enumerate(evidences):
+        if not evidence or len(evidence.strip()) < 5:
+            continue
+            
+        # 색상 순환 (부드러운 파스텔 색상)
+        colors = ["#FFD6D6", "#D6FFD6", "#D6D6FF", "#FFFFD6", "#FFD6FF", "#D6FFFF"]
+        color = colors[idx % len(colors)]
+        
+        # 증거 문장을 정규표현식으로 안전하게 찾기 위해 이스케이프
+        safe_evidence = re.escape(html.escape(evidence.strip()))
+        
+        # 문장 하이라이팅
+        pattern = f"({safe_evidence})"
+        replacement = f'<span style="background-color:{color}; padding:2px; border-radius:3px;">{evidence}</span>'
+        html_text = re.sub(pattern, replacement, html_text)
+    
+    return html_text
+
 # 사이드바
 with st.sidebar:
     st.markdown("## \U0001F4D8 채점 흐름")
@@ -113,7 +137,7 @@ with st.sidebar:
 **STEP 1:** 문제 업로드 → 채점 기준 생성  
 **STEP 2:** 학생 답안 업로드 → 무작위 채점  
 **STEP 3:** 교수자 피드백 → 기준 수정  
-**STEP 4:** 전체 학생 자동 채점 + 점수 분포 시각화
+**STEP 4:** 전체 학생 자동 채점 + 하이라이팅
 """)
 
 # STEP 1 - 문제 업로드 -> 채점 기준 생성
@@ -198,8 +222,7 @@ if st.session_state.step == 1:
             st.subheader("📊 채점 기준")
             st.markdown(st.session_state.generated_rubrics[rubric_key])
 
-#학생 답안 -> 무작위 채점
-# STEP 2
+# STEP 2 - 학생 답안 -> 무작위 채점
 elif st.session_state.step == 2:
     # 문제가 이미 업로드되었는지 확인
     if st.session_state.problem_text and st.session_state.problem_filename:
@@ -317,94 +340,11 @@ elif st.session_state.step == 3:
         if st.button("STEP 1로 이동"):
             st.session_state.step = 1
 
-##Step4
-# ✅ 채점 기준 포함 GPT 프롬프트 생성 함수
-def generate_grading_prompt(answer, rubric_text):
-    return f"""
-다음은 채점 기준입니다:
-{rubric_text}
-
-아래는 학생의 답안입니다:
-{answer}
-
-이 기준에 따라 채점 표를 작성해 주세요. 반드시 정확한 마크다운 표 형식을 따르되,
-각 항목에 대해 채점 점수뿐 아니라, 채점 판단의 **직접적인 문장 근거**도 함께 작성해 주세요.
-그리고,
-
-| 채점 항목 | 배점 | 부여 점수 | 평가 근거 | 근거 문장 |
-|----------|-----|-----------|-----------|------------|
-| 이해도 | 10 | 8 | 개념 설명은 잘했으나 용어 오용 | "어떤 단어가 문맥에 따라 여러 품사 태그를 가질 수 있다." |
-
-표 아래에 총점과 총평도 꼭 포함해 주세요:
-총점: __점  
-총평: ____
-
-주의사항: 표의 각 셀 내용에는 절대로 '|' 기호를 포함하지 마세요.  
-파이프 기호는 마크다운 표의 열 구분자로 사용되므로 셀 안에 포함되면 파싱 오류가 발생합니다.
-"""
-
-# ✅ GPT 결과에서 마크다운 표 파싱 함수
-def parse_markdown_grading_table(text):
-
-    # 1. 마크다운 표만 추출
-    table_match = re.search(r"\| *채점 항목 *\|.*?\n(\|.*?\n)+", text, re.DOTALL)
-    if not table_match:
-        raise ValueError("마크다운 표를 찾을 수 없습니다.")
-
-    table_text = table_match.group()
-
-    # 2. 구분선 제거 및 줄 정리
-    lines = [line.strip() for line in table_text.strip().split('\n')
-             if line.strip() and not re.match(r'^\|[- ]+\|$', line)]
-
-    # 3. 안전한 CSV 텍스트로 변환 (쉼표 포함 셀은 자동 감싸기)
-    csv_buffer = StringIO()
-    writer = csv.writer(csv_buffer, quoting=csv.QUOTE_MINIMAL)
-
-    for line in lines:
-        cells = [cell.strip() for cell in line.strip('|').split('|')]
-        writer.writerow(cells)
-
-    csv_buffer.seek(0)
-
-    # 4. pandas로 안전하게 읽기
-    try:
-        df = pd.read_csv(csv_buffer)
-    except Exception as e:
-        raise ValueError(f"CSV 파싱 실패: {e}\n\n⚠️ 문제 있는 표 원본:\n{csv_buffer.getvalue()}")
-
-    # 5. 총점 추출
-    total_score_match = re.search(r"총점[:：]?\s*(\d+)\s*점", text)
-    total_score = int(total_score_match.group(1)) if total_score_match else None
-
-    # 6. 총평 추출
-    feedback_match = re.search(r"총평[:：]?\s*(.+)", text)
-    feedback = feedback_match.group(1).strip() if feedback_match else ""
-
-    return df, total_score, feedback
-
-
-# ✅ 하이라이팅 함수
-def apply_highlight(text, evidence_list, labels=None):
-    text = html.escape(text)
-    lines = text.split('\n')
-
-    for idx, evidence in enumerate(evidence_list):
-        if pd.isna(evidence) or len(evidence.strip()) < 5:
-            continue
-        ev = html.escape(evidence.strip())
-        match = get_close_matches(ev, lines, n=1, cutoff=0.6)
-        if match:
-            target = match[0]
-            color = f"hsl({(idx * 47) % 360}, 70%, 85%)"
-            label = labels[idx] if labels and idx < len(labels) else "근거 문장"
-            span = f'<span style="background-color:{color}; padding:2px; border-radius:3px;" title="{label}">{target}</span>'
-            lines = [line.replace(target, span) if line == target else line for line in lines]
-    return "<br>".join(lines)
-
-# ✅ Step4 실행부
-if st.session_state.step == 4:
+# STEP 4 - 전체 학생 채점 및 하이라이팅
+elif st.session_state.step == 4:
     rubric_key = f"rubric_{st.session_state.problem_filename}"
+    
+    # 최종 채점 기준 (수정된 것이 있으면 수정된 것, 없으면 원본)
     rubric_text = st.session_state.modified_rubrics.get(rubric_key, st.session_state.generated_rubrics.get(rubric_key))
 
     if not rubric_text:
@@ -415,65 +355,126 @@ if st.session_state.step == 4:
         st.subheader("📊 채점 기준")
         st.markdown(rubric_text)
 
-        if st.button("📥 전체 학생 채점 실행"):
-            grading_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
+        if st.button("📝 전체 학생 채점 실행"):
             st.session_state.highlighted_results = []
             progress_bar = st.progress(0)
             total_students = len(st.session_state.student_answers_data)
+            
+            with st.spinner("GPT가 채점 중입니다..."):
+                for i, student in enumerate(st.session_state.student_answers_data):
+                    name, sid, answer = student["name"], student["id"], student["text"]
+                    
+                    # GPT 채점 프롬프트
+                    prompt = f"""
+다음은 채점 기준입니다:
+{rubric_text}
 
-            with st.spinner("GPT가 전체 학생을 채점 중입니다..."):
-                for i, stu in enumerate(st.session_state.student_answers_data):
-                    name, sid, answer = stu["name"], stu["id"], stu["text"]
-                    prompt = generate_grading_prompt(answer, rubric_text)
+아래는 학생({name}, {sid})의 답안입니다:
+{answer}
+
+이 기준에 따라 채점하고 다음 형식으로 결과를 제공해주세요:
+
+1. 채점 표는 다음 마크다운 형식을 사용하세요:
+| 채점 항목 | 배점 | 부여 점수 | 평가 근거 |
+|----------|-----|-----------|-----------|
+| 항목1    | 10점 | 8점      | 평가 근거 설명 |
+
+2. 답안에서 근거가 되는 핵심 문장을 3~5개 추출하여 각각 따옴표로 표시하여 나열해주세요. 예:
+**근거 문장:**
+- "1번 근거 문장"
+- "2번 근거 문장"
+- "3번 근거 문장"
+
+3. 마지막에 총점과 간략한 총평을 작성해주세요:
+**총점: XX점**
+**총평:** 간략한 총평 내용
+
+주의: 근거 문장은 반드시 학생 답안에서 직접 따온 문장이어야 합니다.
+"""
+                    
+                    # 채점 실행
+                    grading_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
                     result = grading_chain.invoke({"input": prompt})
-
-                    try:
-                        df, total_score, feedback = parse_markdown_grading_table(result["text"])
-                        if '근거 문장' not in df.columns:
-                            raise ValueError("GPT 응답에 '근거 문장' 열이 없습니다.")
-
-                        highlighted = apply_highlight(answer, df['근거 문장'], df['채점 항목'])
-
-                        markdown_table = "| 채점 항목 | 배점 | 부여 점수 | 평가 근거 |\n|----------|------|------------|-----------|\n"
-                        for _, row in df.iterrows():
-                            markdown_table += f"| {row['채점 항목']} | {row['배점']} | {row['부여 점수']} | {row['평가 근거']} |\n"
-                        markdown_table += f"\n**총점: {total_score}점**\n\n**총평:** {feedback}"
-
-                        st.session_state.highlighted_results.append({
-                            "name": name,
-                            "id": sid,
-                            "score": total_score,
-                            "feedback": feedback,
-                            "highlighted_text": highlighted,
-                            "markdown_table": markdown_table,
-                            "text": answer
-                        })
-                    except Exception as e:
-                        st.error(f"{name}({sid}) 채점 실패: {str(e)}")
-                        st.code(result["text"])
+                    grading_result = result["text"]
+                    
+                    # 근거 문장 추출
+                    evidence_sentences = []
+                    evidence_match = re.search(r'\*\*근거 문장:\*\*\s*([\s\S]*?)(?=\*\*총점|\Z)', grading_result)
+                    if evidence_match:
+                        evidence_text = evidence_match.group(1)
+                        # 각 줄에서 따옴표 안의 내용 추출
+                        for line in evidence_text.split('\n'):
+                            match = re.search(r'"(.*?)"', line)
+                            if match:
+                                evidence_sentences.append(match.group(1))
+                    
+                    # 총점 추출
+                    total_score = None
+                    score_match = re.search(r'\*\*총점: (\d+)점\*\*', grading_result)
+                    if score_match:
+                        total_score = int(score_match.group(1))
+                    
+                    # 총평 추출
+                    feedback = ""
+                    feedback_match = re.search(r'\*\*총평:\*\* (.*?)(?=\Z|\n\n)', grading_result)
+                    if feedback_match:
+                        feedback = feedback_match.group(1)
+                    
+                    # 하이라이팅 적용
+                    highlighted_text = apply_highlight(answer, evidence_sentences)
+                    
+                    # 결과 저장
+                    st.session_state.highlighted_results.append({
+                        "name": name,
+                        "id": sid,
+                        "score": total_score,
+                        "feedback": feedback,
+                        "grading_result": grading_result,
+                        "highlighted_text": highlighted_text,
+                        "original_text": answer,
+                        "evidence_sentences": evidence_sentences
+                    })
+                    
+                    # 진행률 업데이트
                     progress_bar.progress((i + 1) / total_students)
+            
+            st.success(f"✅ 전체 {total_students}명 학생 채점 완료!")
 
-            progress_bar.empty()
-            st.success(f"✅ 전체 학생({total_students}명) 채점 완료")
-
-        # ✅ 하이라이팅된 답안 전체 출력
+        # 채점 결과 표시
         if st.session_state.highlighted_results:
-            st.subheader("📋 전체 학생 하이라이팅된 답안 보기")
-
-            sorted_results = st.session_state.highlighted_results.copy()
-
-            for r in sorted_results:
-                st.markdown(f"### ✍️ {r['name']} ({r['id']}) - 총점: {r['score']}점")
-
-                st.markdown("**📑 하이라이팅된 답안**", unsafe_allow_html=True)
-                st.markdown(r["highlighted_text"], unsafe_allow_html=True)
-                st.caption("💡 하이라이트된 문장은 GPT가 해당 항목에 점수를 부여한 핵심 근거 문장입니다.")
-
-                with st.expander("📋 채점 요약표"):
-                    st.markdown(r["markdown_table"])
-
-                with st.expander("📝 원본 답안"):
-                    st.text_area(f"{r['name']} 원본 답안", value=r["text"], height=300, disabled=True)
-
-                st.markdown("---")
-
+            # 점수 순으로 정렬
+            sorted_results = sorted(
+                st.session_state.highlighted_results, 
+                key=lambda x: x["score"] if x["score"] is not None else 0,
+                reverse=True
+            )
+            
+            st.subheader("📋 전체 학생 채점 결과")
+            
+            # 간단한 요약 표시
+            summary_data = [
+                {"이름": r["name"], "학번": r["id"], "점수": r["score"] if r["score"] is not None else "N/A"} 
+                for r in sorted_results
+            ]
+            
+            # 요약 테이블
+            st.subheader("📊 학생별 점수 요약")
+            st.table(summary_data)
+            
+            # 각 학생별 상세 결과
+            st.subheader("📝 학생별 상세 답안 및 채점")
+            
+            for idx, result in enumerate(sorted_results):
+                with st.expander(f"📄 {result['name']} ({result['id']}) - {result['score']}점"):
+                    tab1, tab2, tab3 = st.tabs(["하이라이팅된 답안", "채점 결과", "원본 답안"])
+                    
+                    with tab1:
+                        st.markdown(f"**하이라이팅된 답안 - 근거 문장이 색상으로 표시됩니다**", unsafe_allow_html=True)
+                        st.markdown(result["highlighted_text"], unsafe_allow_html=True)
+                    
+                    with tab2:
+                        st.markdown(f"**채점 결과**")
+                        st.markdown(result["grading_result"])
+                    
+                    with tab3:
+                        st.text_area("원본 답안", result["original_text"], height=300)
