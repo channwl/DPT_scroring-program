@@ -86,12 +86,31 @@ def extract_total_score(grading_text):
     return int(match.group(1)) if match else None
 
 # 하이라이팅 함수 - 단순화
-def apply_highlight(text, evidences):
-    """
-    텍스트에서 증거 문장을 찾아 하이라이팅합니다.
-    """
+from difflib import SequenceMatcher
+
+def apply_highlight_fuzzy(text, evidences, threshold=0.8):
     if not evidences:
-        return text
+        return html.escape(text).replace('\n', '<br>')
+
+    # 전처리: 문단을 줄 단위로 쪼갬
+    lines = text.split('\n')
+    highlighted_lines = []
+
+    for line in lines:
+        highlighted = False
+        for idx, evidence in enumerate(evidences):
+            ratio = SequenceMatcher(None, evidence.strip(), line.strip()).ratio()
+            if ratio >= threshold:
+                color = ["#FFD6D6", "#D6FFD6", "#D6D6FF", "#FFFFD6", "#FFD6FF", "#D6FFFF"][idx % 6]
+                safe_line = html.escape(line)
+                highlighted_line = f'<span style="background-color:{color}; padding:2px; border-radius:3px;">{safe_line}</span>'
+                highlighted_lines.append(highlighted_line)
+                highlighted = True
+                break
+        if not highlighted:
+            highlighted_lines.append(html.escape(line))
+
+    return '<br>'.join(highlighted_lines)
     
     # HTML 이스케이프 처리
     html_text = html.escape(text).replace('\n', '<br>')
