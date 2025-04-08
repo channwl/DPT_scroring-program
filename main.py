@@ -345,26 +345,32 @@ def generate_grading_prompt(answer, rubric_text):
 # ✅ GPT 결과에서 마크다운 표 파싱 함수
 def parse_markdown_grading_table(text):
 
-    # 1. 마크다운 표 추출
+    # 1. 마크다운 표만 추출
     table_match = re.search(r"\| *채점 항목 *\|.*?\n(\|.*?\n)+", text, re.DOTALL)
     if not table_match:
         raise ValueError("마크다운 표를 찾을 수 없습니다.")
 
     table_text = table_match.group()
 
-    # 2. 헤더 구분선 제거 및 줄 정리
+    # 2. 구분선 제거 및 줄 정리
     lines = [line.strip() for line in table_text.strip().split('\n')
              if line.strip() and not re.match(r'^\|[- ]+\|$', line)]
 
-    # 3. 표를 CSV 텍스트로 변환
-    csv_text = '\n'.join([','.join([cell.strip() for cell in line.strip('|').split('|')])
-                          for line in lines])
+    # 3. 안전한 CSV 텍스트로 변환 (쉼표 포함 셀은 자동 감싸기)
+    csv_buffer = StringIO()
+    writer = csv.writer(csv_buffer, quoting=csv.QUOTE_MINIMAL)
 
-    # 4. pandas를 이용한 안정적 파싱
+    for line in lines:
+        cells = [cell.strip() for cell in line.strip('|').split('|')]
+        writer.writerow(cells)
+
+    csv_buffer.seek(0)
+
+    # 4. pandas로 안전하게 읽기
     try:
-        df = pd.read_csv(StringIO(csv_text), quotechar='"', engine="python")
+        df = pd.read_csv(csv_buffer)
     except Exception as e:
-        raise ValueError(f"CSV 파싱 실패: {e}\n\n⚠️ 문제 있는 표 원본:\n{csv_text}")
+        raise ValueError(f"CSV 파싱 실패: {e}\n\n⚠️ 문제 있는 표 원본:\n{csv_buffer.getvalue()}")
 
     # 5. 총점 추출
     total_score_match = re.search(r"총점[:：]?\s*(\d+)\s*점", text)
@@ -449,55 +455,24 @@ if st.session_state.step == 4:
             progress_bar.empty()
             st.success(f"✅ 전체 학생({total_students}명) 채점 완료")
 
+        # ✅ 하이라이팅된 답안 전체 출력
         if st.session_state.highlighted_results:
-            st.subheader("📋 전체 학생 채점 결과 (하이라이팅 포함)")
-            for r in sorted_results:
-                st.markdown(f"### ✍️ {r['name']} ({r['id']}) - 총점: {r['score']}점")
-                cols = st.columns([1, 2])
-                with cols[0]:
-                    st.markdown("**📊 채점 요약표**")
-                    st.markdown(r["markdown_table"])
-                with cols[1]:
-                    st.markdown("**🔍 하이라이팅된 답안**")
-                    st.markdown(r["highlighted_text"], unsafe_allow_html=True)
-                    st.caption("💡 하이라이트된 문장 위에 마우스를 올리면 평가 항목이 나타납니다.")
-    
-                st.markdown("---")
-
-            sort_options = ["이름순", "학번순", "점수 높은순", "점수 낮은순"]
-            sort_method = st.radio("정렬 방식", sort_options, horizontal=True)
+            st.subheader("📋 전체 학생 하이라이팅된 답안 보기")
 
             sorted_results = st.session_state.highlighted_results.copy()
-            if sort_method == "이름순":
-                sorted_results.sort(key=lambda x: x["name"])
-            elif sort_method == "학번순":
-                sorted_results.sort(key=lambda x: x["id"])
-            elif sort_method == "점수 높은순":
-                sorted_results.sort(key=lambda x: x["score"], reverse=True)
-            elif sort_method == "점수 낮은순":
-                sorted_results.sort(key=lambda x: x["score"])
-
-            student_options = [(f"{r['name']} ({r['id']}) - {r['score']}점") for r in sorted_results]
-            selected_student = st.selectbox("🧑‍🎓 학생 선택", ["모든 학생 보기"] + student_options)
 
             for r in sorted_results:
-                label = f"{r['name']} ({r['id']}) - {r['score']}점"
-    
-            if selected_student == "모든 학생 보기" or selected_student == label:
                 st.markdown(f"### ✍️ {r['name']} ({r['id']}) - 총점: {r['score']}점")
 
-                # 💡 하이라이팅된 답안을 메인으로 보여주기
-                st.markdown("**📑 하이라이팅된 답안 (채점 근거 문장 강조)**", unsafe_allow_html=True)
+                st.markdown("**📑 하이라이팅된 답안**", unsafe_allow_html=True)
                 st.markdown(r["highlighted_text"], unsafe_allow_html=True)
-                st.caption("💡 하이라이트된 문장은 GPT가 채점 시 판단 근거로 삼은 문장입니다.")
+                st.caption("💡 하이라이트된 문장은 GPT가 해당 항목에 점수를 부여한 핵심 근거 문장입니다.")
 
-                # 📊 채점 표는 접어서 보기
-                with st.expander("📋 채점 요약표 보기"):
+                with st.expander("📋 채점 요약표"):
                     st.markdown(r["markdown_table"])
 
-                # ✏️ 원본 답안도 선택적으로 확인 가능
-                with st.expander("📝 원본 답안 보기"):
-                    st.text_area(f"원본 답안 - {r['name']} ({r['id']})", value=r["text"], height=300, disabled=True)
+                with st.expander("📝 원본 답안"):
+                    st.text_area(f"{r['name']} 원본 답안", value=r["text"], height=300, disabled=True)
 
                 st.markdown("---")
 
