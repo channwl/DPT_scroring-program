@@ -351,7 +351,11 @@ def parse_markdown_grading_table(text):
     table_text = table_match.group()
     lines = [line.strip() for line in table_text.strip().split('\n') if line.strip() and not re.match(r'^\|[- ]+\|$', line)]
     csv_text = '\n'.join([','.join([cell.strip() for cell in line.strip('|').split('|')]) for line in lines])
-    df = pd.read_csv(StringIO(csv_text))
+
+    try:
+        df = pd.read_csv(StringIO(csv_text), quotechar='"', engine="python")
+    except Exception as e:
+        raise ValueError(f"CSV 파싱 실패: {e}\n문제 있는 CSV:\n{csv_text}")
 
     total_score_match = re.search(r"총점[:：]?\s*(\d+)\s*점", text)
     total_score = int(total_score_match.group(1)) if total_score_match else None
@@ -360,6 +364,7 @@ def parse_markdown_grading_table(text):
     feedback = feedback_match.group(1).strip() if feedback_match else ""
 
     return df, total_score, feedback
+
 
 # ✅ 하이라이팅 함수
 def apply_highlight(text, evidence_list, labels=None):
