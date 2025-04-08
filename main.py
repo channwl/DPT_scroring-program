@@ -110,11 +110,31 @@ def extract_total_score(grading_text):
     return int(match.group(1)) if match else None
 
 # 하이라이팅 함수 - 단순화
-from difflib import SequenceMatcher
+from difflib import get_close_matches
+import html
 
-def apply_highlight_fuzzy(text, evidences, threshold=0.8):
-    if not evidences:
-        return html.escape(text).replace('\n', '<br>')
+def apply_highlight_fuzzy_lines(text, evidences, threshold=0.75):
+    lines = text.split('\n')
+    used_indices = set()
+    html_lines = []
+
+    for line in lines:
+        matched = False
+        for idx, evidence in enumerate(evidences):
+            matches = get_close_matches(evidence.strip(), [line.strip()], n=1, cutoff=threshold)
+            if matches:
+                if idx not in used_indices:
+                    used_indices.add(idx)
+                    color = ["#FFD6D6", "#D6FFD6", "#D6D6FF", "#FFFFD6", "#FFD6FF", "#D6FFFF"][idx % 6]
+                    safe_line = html.escape(line)
+                    highlighted = f'<span style="background-color:{color}; padding:2px; border-radius:3px;">{safe_line}</span>'
+                    html_lines.append(highlighted)
+                    matched = True
+                    break
+        if not matched:
+            html_lines.append(html.escape(line))
+    
+    return "<br>".join(html_lines)
 
     # 전처리: 문단을 줄 단위로 쪼갬
     lines = text.split('\n')
