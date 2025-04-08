@@ -64,6 +64,18 @@ def extract_text_from_pdf(pdf_data):
                 text += page_text + "\n"
     return text
 
+#전처리
+def clean_text_postprocess(text):
+    lines = text.split('\n')
+    cleaned = []
+    for line in lines:
+        # 불필요한 줄 제거: 페이지 번호, 과제 이름, 학번 줄 등
+        if re.search(r'DIGB226|Final Take-Home Exam|^\s*-\s*\d+\s*-$', line):
+            continue
+        if re.search(r'^\d{9,10}\s*[\uAC00-\uD7A3]+$', line):  # 학번 + 이름 줄
+            continue
+        cleaned.append(line.strip())
+    return "\n".join(cleaned)
 
 
 # 파일명에서 이름/학번 추출
