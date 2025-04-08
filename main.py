@@ -312,6 +312,49 @@ elif st.session_state.step == 3:
         if st.button("STEP 1로 이동"):
             st.session_state.step = 1
 
+for r in sorted_results:
+    label = f"{r['name']} ({r['id']}) - {r['score']}점"
+    if selected_student == "모든 학생 보기" or selected_student == label:
+        st.markdown(f"## ✍️ {r['name']} ({r['id']}) - 총점: {r['score']}점")
+        
+        # 표에서 항목별 근거 가져오기
+        try:
+            df = pd.read_csv(StringIO(
+                re.search(r"\| *채점 항목 *\|.*?\n(\|.*?\n)+", r["markdown_table"], re.DOTALL).group()
+                .replace('| ', '|').replace(' |', '|')  # 공백 정리
+                .replace(' | ', '|')  # 간격 통일
+            ))
+        except Exception as e:
+            st.warning("⚠️ GPT 응답에서 표 추출 실패. 하이라이팅 탭 제한.")
+            df = pd.DataFrame(columns=["채점 항목", "배점", "부여 점수", "평가 근거", "근거 문장"])
+
+        tabs = st.tabs(["📋 요약 보기", "🧠 근거 주석 보기", "🔍 하이라이팅 보기"])
+
+        # 📋 요약 보기 탭
+        with tabs[0]:
+            st.markdown(r["markdown_table"])
+            st.markdown("---")
+
+        # 🧠 근거 주석 보기 탭
+        with tabs[1]:
+            st.markdown("### 답안 전체")
+            st.text_area("학생 답안", r["text"], height=400, disabled=True)
+            if not df.empty and "근거 문장" in df.columns:
+                st.markdown("### 💬 GPT가 제시한 평가 근거 문장")
+                for _, row in df.iterrows():
+                    if not pd.isna(row["근거 문장"]) and len(str(row["근거 문장"]).strip()) > 3:
+                        st.markdown(f"💬 **[{row['채점 항목']}]** {row['근거 문장']}")
+            else:
+                st.info("근거 문장이 포함된 채점표가 없습니다.")
+
+        # 🔍 하이라이팅 보기 탭
+        with tabs[2]:
+            st.markdown("### 색상 강조된 답안 보기")
+            st.markdown(r["highlighted_text"], unsafe_allow_html=True)
+            st.info("💡 강조된 부분에 마우스를 올리면 해당 항목 정보를 볼 수 있습니다.")
+
+        st.markdown("---")
+
 import re
 import html
 import pandas as pd
@@ -359,7 +402,7 @@ def parse_markdown_grading_table(text):
     return df, total_score, feedback
 
 # Fuzzy 하이라이팅
-def apply_highlight(text, evidence_list):
+def apply_highlight(text, evidence_list, labels=None):
     text = html.escape(text)
     lines = text.split('\n')
 
@@ -371,11 +414,9 @@ def apply_highlight(text, evidence_list):
         if match:
             target = match[0]
             color = f"hsl({(idx * 47) % 360}, 70%, 85%)"
-            span = f'<span style="background-color:{color}; padding:2px; border-radius:3px;" title="근거">{target}</span>'
+            label = labels[idx] if labels and idx < len(labels) else "근거 문장"
+            span = f'<span style="background-color:{color}; padding:2px; border-radius:3px;" title="{label}">{target}</span>'
             lines = [line.replace(target, span) if line == target else line for line in lines]
-        else:
-            st.warning(f"⚠️ 하이라이트 매칭 실패: {ev[:30]}...")
-
     return "<br>".join(lines)
 
 # Step 4 실행부
@@ -409,7 +450,7 @@ if st.session_state.step == 4:
                         if '근거 문장' not in df.columns:
                             raise ValueError("GPT 응답에 '근거 문장' 열이 없습니다.")
 
-                        highlighted = apply_highlight(answer, df['근거 문장'])
+                        highlighted = apply_highlight(answer, df['근거 문장'], df['채점 항목'])
 
                         markdown_table = "| 채점 항목 | 배점 | 부여 점수 | 평가 근거 |\n|----------|------|------------|-----------|\n"
                         for _, row in df.iterrows():
