@@ -412,7 +412,7 @@ elif st.session_state.step == 3:
         if st.button("STEP 1로 이동"):
             st.session_state.step = 1
 
-# STEP 4 - 전체 학생 채점 및 하이라이팅
+# STEP 4 - 전체 학생 채점 및 근거 문장 확인
 elif st.session_state.step == 4:
     rubric_key = f"rubric_{st.session_state.problem_filename}"
     
@@ -475,7 +475,6 @@ ex) **근거 문장:**
                     evidence_match = re.search(r'\*\*근거 문장:\*\*\s*([\s\S]*?)(?=\*\*총점|\Z)', grading_result)
                     if evidence_match:
                         evidence_text = evidence_match.group(1)
-                        # 각 줄에서 따옴표 안의 내용 추출
                         for line in evidence_text.split('\n'):
                             match = re.search(r'"(.*?)"', line)
                             if match:
@@ -493,22 +492,17 @@ ex) **근거 문장:**
                     if feedback_match:
                         feedback = feedback_match.group(1)
                     
-                    # 하이라이팅 적용
-                    highlighted_text = apply_highlight_fuzzy(answer, evidence_sentences)
-                    
-                    # 결과 저장
+                    # 결과 저장 (하이라이팅 제외)
                     st.session_state.highlighted_results.append({
                         "name": name,
                         "id": sid,
                         "score": total_score,
                         "feedback": feedback,
                         "grading_result": grading_result,
-                        "highlighted_text": highlighted_text,
                         "original_text": answer,
                         "evidence_sentences": evidence_sentences
                     })
                     
-                    # 진행률 업데이트
                     progress_bar.progress((i + 1) / total_students)
             
             st.success(f"✅ 전체 {total_students}명 학생 채점 완료!")
@@ -523,34 +517,36 @@ ex) **근거 문장:**
             )
             
             st.subheader("📋 전체 학생 채점 결과")
-            
-            # 간단한 요약 표시
+
+            # 요약 테이블
             summary_data = [
                 {"이름": r["name"], "학번": r["id"], "점수": r["score"] if r["score"] is not None else "N/A"} 
                 for r in sorted_results
             ]
             
-            # 요약 테이블
             st.subheader("📊 학생별 점수 요약")
             st.table(summary_data)
             
             # 각 학생별 상세 결과
             st.subheader("📝 학생별 상세 답안 및 채점")
-            
+
             for idx, result in enumerate(sorted_results):
                 with st.expander(f"📄 {result['name']} ({result['id']}) - {result['score']}점"):
-                    tab1, tab2, tab3 = st.tabs(["하이라이팅된 답안", "채점 결과", "원본 답안"])
-                    
+                    tab1, tab2, tab3 = st.tabs(["🔍 채점 근거 문장", "📑 채점 결과", "📘 원본 답안"])
+
                     with tab1:
-                        st.markdown(f"**하이라이팅된 답안 - 근거 문장이 색상으로 표시됩니다**", unsafe_allow_html=True)
-                        st.markdown(result["highlighted_text"], unsafe_allow_html=True)
-                    
+                        st.markdown("**GPT가 선택한 평가 근거 문장입니다.**")
+                        if result["evidence_sentences"]:
+                            for i, sentence in enumerate(result["evidence_sentences"], 1):
+                                st.markdown(f"- **{i}.** {sentence}")
+                        else:
+                            st.info("근거 문장이 없습니다.")
+
                     with tab2:
-                        st.markdown(f"**채점 결과**")
+                        st.markdown("**GPT 채점 결과**")
                         st.markdown(result["grading_result"])
-                    
+
                     with tab3:
                         st.markdown("**📄 문단 구조로 정리된 답안**")
                         formatted = apply_indentation(result["original_text"])
                         st.markdown(formatted, unsafe_allow_html=True)
-
