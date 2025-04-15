@@ -439,7 +439,6 @@ elif st.session_state.step == 4:
                     # GPT 채점 프롬프트
                     prompt = f"""
 다음은 채점 기준입니다:
-다음은 채점 기준입니다:
 {rubric_text}
 
 아래는 학생({name}, {sid})의 답안입니다:
