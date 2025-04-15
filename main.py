@@ -150,43 +150,6 @@ def extract_total_score(grading_text):
     match = re.search(r'총점[:：]?\s*(\d+)\s*점', grading_text)
     return int(match.group(1)) if match else None
 
-from difflib import get_close_matches
-import html
-
-def apply_highlight_fuzzy(text, evidences, threshold=0.75):
-    """
-    학생 답안에서 증거 문장을 fuzzy하게 매칭하여 하이라이팅하는 함수
-
-    Args:
-        text (str): 전체 학생 답안 텍스트
-        evidences (list of str): 채점 기준에서 추출된 증거 문장들
-        threshold (float): 유사도 매칭 기준 (0~1)
-
-    Returns:
-        str: HTML 형식으로 하이라이팅된 텍스트
-    """
-    lines = text.split('\n')
-    used_indices = set()
-    html_lines = []
-
-    for line in lines:
-        matched = False
-        for idx, evidence in enumerate(evidences):
-            matches = get_close_matches(evidence.strip(), [line.strip()], n=1, cutoff=threshold)
-            if matches and idx not in used_indices:
-                used_indices.add(idx)
-                color = ["#FFD6D6", "#D6FFD6", "#D6D6FF", "#FFFFD6", "#FFD6FF", "#D6FFFF"][idx % 6]
-                safe_line = html.escape(line)
-                highlighted = f'<span style="background-color:{color}; padding:2px; border-radius:3px;">{safe_line}</span>'
-                html_lines.append(highlighted)
-                matched = True
-                break
-        if not matched:
-            html_lines.append(html.escape(line))
-
-    return "<br>".join(html_lines)
-
-
 # 사이드바
 with st.sidebar:
     st.markdown("## \U0001F4D8 채점 흐름")
@@ -438,32 +401,66 @@ elif st.session_state.step == 4:
                     
                     # GPT 채점 프롬프트
                     prompt = f"""
+                    
 다음은 채점 기준입니다:
 {rubric_text}
 
 아래는 학생({name}, {sid})의 답안입니다:
 {answer}
 
-이 기준에 따라 채점하고 다음 형식으로 결과를 제공해주세요:
+이 기준에 따라 채점 결과를 아래 형식으로 작성하세요:
 
-1. 채점 표는 다음 마크다운 형식을 사용하세요:
+---
+## ✅ 예시를 먼저 확인하세요
+
+[예시 채점 기준]
+
+| 채점 항목 | 배점 | 세부 기준 |
+|----------------------------|------|------------------------------|
+| 지도학습과 비지도학습의 차이 설명 | 5점 | 개념을 명확히 정의하고, 데이터 라벨 여부에 따른 차이를 설명했는가 |
+| KNN 알고리즘 설명 | 5점 | KNN의 작동 원리를 설명하고, 주요 수식이나 예시를 포함했는가 |
+
+[예시 학생 답안]
+
+지도학습은 정답이 있는 데이터를 기반으로 모델을 학습시키는 방식이며, 비지도학습은 정답 없이 데이터를 군집화하거나 패턴을 찾는 방식이다.
+KNN 알고리즘은 새로운 데이터 포인트를 예측할 때, 가장 가까운 K개의 이웃을 기준으로 분류한다. 거리 계산에는 유클리드 거리나 맨해튼 거리가 사용된다.
+
+[예시 채점 결과]
+
+| 채점 항목 | 배점 | 부여 점수 | 평가 근거 |
+|----------------------------|------|-----------|-----------|
+| 지도학습과 비지도학습의 차이 설명 | 5점 | 5점 | 라벨 여부를 기반으로 개념을 정확히 설명함 |
+| KNN 알고리즘 설명 | 5점 | 4점 | 작동 원리는 설명했으나 거리 계산 방식은 일부 부족함 |
+
+**근거 문장:**
+- "지도학습은 정답이 있는 데이터를 기반으로 모델을 학습시키는 방식이며, 비지도학습은 정답 없이 데이터를 군집화하거나 패턴을 찾는 방식이다."
+- "KNN 알고리즘은 새로운 데이터 포인트를 예측할 때, 가장 가까운 K개의 이웃을 기준으로 분류한다."
+
+---
+
+## ✍️ 실제 채점 결과를 아래 형식으로 작성하세요:
+
+1. **마크다운 표**: 아래 형식으로 채점
 | 채점 항목 | 배점 | 부여 점수 | 평가 근거 |
 |----------|-----|-----------|-----------|
 | 항목1    | 10점 | 8점      | 평가 근거 설명 |
 
-2. 만든 최종 채점 기준에 따라 채점을 해주고, 그렇게 채점한 이유를 학생 답안에서 추출하여 보여주세요.
+2. **근거 문장 (Evidence)**  
+각 채점 항목별로 최대 3개씩, **학생 답안에서 실제로 발췌한 문장**을 적어주세요. 문장은 반드시 쌍따옴표로 묶으세요.
 
-ex) **근거 문장:**
-- "1번 근거 문장"
-- "2번 근거 문장"
-- "3번 근거 문장"
+**근거 문장:**
+- "학생 답안에서 발췌한 문장 1"
+- "학생 답안에서 발췌한 문장 2"
 
-3. 마지막에 총점과 간략한 총평을 작성해주세요:
-**총점: XX점**
+3. **총점과 총평**을 아래 형식으로 작성해주세요:
+**총점: XX점**  
 **총평:** 간략한 총평 내용
 
-주의: 근거 문장은 반드시 학생 답안에서 직접 따온 문장이어야 합니다.
+주의:
+- **근거 문장**은 반드시 학생 답안의 문장을 그대로 발췌하세요 (요약/의역 금지).
+- 가능한 한 각 항목과 연관된 문장들을 고르게 선택하세요.
 """
+
                     
                     # 채점 실행
                     grading_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
