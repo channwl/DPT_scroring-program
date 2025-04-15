@@ -150,42 +150,6 @@ def extract_total_score(grading_text):
     match = re.search(r'총점[:：]?\s*(\d+)\s*점', grading_text)
     return int(match.group(1)) if match else None
 
-from difflib import get_close_matches
-import html
-
-def apply_highlight_fuzzy(text, evidences, threshold=0.75):
-    """
-    학생 답안에서 증거 문장을 fuzzy하게 매칭하여 하이라이팅하는 함수
-
-    Args:
-        text (str): 전체 학생 답안 텍스트
-        evidences (list of str): 채점 기준에서 추출된 증거 문장들
-        threshold (float): 유사도 매칭 기준 (0~1)
-
-    Returns:
-        str: HTML 형식으로 하이라이팅된 텍스트
-    """
-    lines = text.split('\n')
-    used_indices = set()
-    html_lines = []
-
-    for line in lines:
-        matched = False
-        for idx, evidence in enumerate(evidences):
-            matches = get_close_matches(evidence.strip(), [line.strip()], n=1, cutoff=threshold)
-            if matches and idx not in used_indices:
-                used_indices.add(idx)
-                color = ["#FFD6D6", "#D6FFD6", "#D6D6FF", "#FFFFD6", "#FFD6FF", "#D6FFFF"][idx % 6]
-                safe_line = html.escape(line)
-                highlighted = f'<span style="background-color:{color}; padding:2px; border-radius:3px;">{safe_line}</span>'
-                html_lines.append(highlighted)
-                matched = True
-                break
-        if not matched:
-            html_lines.append(html.escape(line))
-
-    return "<br>".join(html_lines)
-
 
 # 사이드바
 with st.sidebar:
