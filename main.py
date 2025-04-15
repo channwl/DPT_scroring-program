@@ -495,6 +495,7 @@ ANN은 입력을 받아 가중치를 곱한 후, 활성화 함수를 거쳐 출�
 이제 아래 실제 학생 답안을 평가하세요:
 
 [실제 채점 시작 ↓↓↓]
+"""
                     
                     # 채점 실행
                     grading_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
