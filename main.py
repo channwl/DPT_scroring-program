@@ -467,6 +467,7 @@ Accuracy가 높아도 성능을 과대평가할 수 있다.
 - 항목별 점수·근거의 논리적 대응 관계를 유지하세요.  
 - 표·헤더·굵은 글씨 등 **마크다운 형식**을 엄격히 지켜 출력하세요.
 """
+
      
                     # 채점 실행
                     grading_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
