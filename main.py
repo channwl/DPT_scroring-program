@@ -400,15 +400,7 @@ elif st.session_state.step == 4:
                     name, sid, answer = student["name"], student["id"], student["text"]
                     
                     # GPT 채점 프롬프트
-                    def build_grading_prompt(rubric_text: str, name: str, sid: str, answer: str) -> str:
-    """
-    rubric_text가 없으면 즉시 오류를 내거나,
-    기본 안내 문구를 넣어 GPT가 혼동되지 않도록 방어합니다.
-    """
-    if not rubric_text.strip():
-        raise ValueError("❌ 채점 기준(rubric_text)이 비어 있습니다. 채점 기준을 먼저 입력하세요!")
-
-    prompt = f"""
+                    prompt = f"""
 다음은 채점 기준입니다:
 {rubric_text}
 
@@ -475,7 +467,7 @@ Accuracy가 높아도 성능을 과대평가할 수 있다.
 - 항목별 점수·근거의 논리적 대응 관계를 유지하세요.  
 - 표·헤더·굵은 글씨 등 **마크다운 형식**을 엄격히 지켜 출력하세요.
 """
-    return prompt
+
 
      
                     # 채점 실행
