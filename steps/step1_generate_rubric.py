@@ -37,9 +37,6 @@ def generate_rubric(problem_text: str) -> str:
 **배점 총합: 2점**
 
 ---
-
-📄 문제 내용:
-{text}
 """
     llm = get_llm()
     chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
