@@ -9,7 +9,7 @@ from config.llm_config import get_llm
 from langchain_core.prompts import PromptTemplate
 
 def generate_rubric(problem_text: str) -> str:
-    template = template = """
+    template = """
 당신은 대학 기말고사를 채점하는 전문가 GPT입니다.
 
 다음은 PDF에서 추출한 **실제 시험 문제 본문입니다.**
