@@ -5,8 +5,14 @@ import streamlit as st
 from chains.grading_chain import grade_answer
 from utils.score_utils import extract_total_score, extract_evidence_sentences, extract_summary_feedback
 from utils.text_cleaning import apply_indentation
+import re  # ← 추가
 
-
+def extract_total_score(text: str) -> int: 
+    matches = re.findall(r"총점[:：]?\s*(\d+)", text)
+    if matches:
+        return int(matches[-1])
+    return None
+    
 def run_step4():
     st.subheader("📄 STEP 4: 전체 학생 답안 일괄 채점")
 
