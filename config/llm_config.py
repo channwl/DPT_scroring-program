@@ -12,7 +12,7 @@ def get_llm():
 
     # 채점 시스템에 최적화된 LLM 반환
     return ChatGoogleGenerativeAI(
-        model="gemini-2.5-pro-preview-03-25",  
+        model="gemini-2.0-flash",  
         temperature=0,                          
         convert_system_message_to_human=True
     )
