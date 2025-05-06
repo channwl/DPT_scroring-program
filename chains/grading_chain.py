@@ -6,7 +6,7 @@ from langchain.chains import LLMChain
 from langchain_core.prompts import PromptTemplate
 from config.llm_config import get_llm
 
-# GPT 모델 초기화
+#모델 초기화
 llm = get_llm()
 
 # 채점 체인은 메모리를 사용하지 않음 (단발성 평가)
