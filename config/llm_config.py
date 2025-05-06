@@ -2,7 +2,7 @@
 # 이 파일은 GPT (OpenAI 기반 LLM)를 초기화하는 함수입니다.
 # API 키는 streamlit의 secrets 기능을 통해 안전하게 불러옵니다.
 
-from langchain_community.chat_models import ChatOpenAI
+from langchain.chat_models import ChatOpenAI
 import streamlit as st
 
 def get_llm():
