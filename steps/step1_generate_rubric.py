@@ -7,13 +7,16 @@ from langchain.chains import LLMChain
 from langchain_core.prompts import PromptTemplate
 from config.llm_config import get_llm
 
-
 def generate_rubric(problem_text: str) -> str:
-    prompt = f"""당신은 대학 시험 문제에 대해 **문제별 세분화된 채점 기준을 작성하는 전문가 GPT**입니다.
+    template = """
+당신은 대학 시험 문제에 대해 **문제별 세분화된 채점 기준을 작성하는 전문가 GPT**입니다.
 
-업로드된 PDF를 토대로, 문제에 대해 정확하고 구체적인 **채점 기준 마크다운 표**를 생성하세요.
+아래 문제 본문을 읽고, 각 문제에 대해 **정확하고 구체적인 채점 기준 마크다운 표**를 생성하세요.
 
-작성 지침:
+📄 문제 본문:
+{problem_text}
+
+📌 작성 지침:
 1. 문제 번호와 배점은 문제 본문에서 **정확히 추출하여 반영**하세요.
    - 예: "(4 points)" → "배점 총합: 4점"
 2. 각 문제마다 별도의 마크다운 표를 작성하세요.
@@ -26,15 +29,17 @@ def generate_rubric(problem_text: str) -> str:
 5. 모든 표 생성이 끝난 후, 전체 배점 합계를 다음 형식으로 작성하세요:
    - → 전체 배점 총합: XX점
 6. 문제 수를 잘 확인하여 문제수에 맞게 채점 기준을 생성해주세요.
+7. **한글로만 작성**하세요. 영어 사용 금지.
 
 이제 위 지침을 따라 채점 기준을 작성하세요.
 """
 
-
     llm = get_llm()
-    chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("{input}"))
-    result = chain.invoke({"input": prompt})
+    prompt = PromptTemplate.from_template(template)
+    chain = LLMChain(llm=llm, prompt=prompt)
+    result = chain.invoke({"problem_text": problem_text})
     return result["text"]
+
 
 
 def run_step1():
