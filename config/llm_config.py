@@ -13,15 +13,8 @@ def get_llm():
     # 채점 시스템에 최적화된 LLM 반환
     return ChatGoogleGenerativeAI(
         model="gemini-2.5-pro-preview-03-25",  
-        temperature=0.0,                          # 창의성 최소화 (정확한 채점)
-        convert_system_message_to_human=True,
-        generation_config={
-            "max_output_tokens": 2048,            # 채점 결과 표 + 총평까지 충분한 길이
-            "max_thought_tokens": 256,            # 내부 사고 토큰: 채점 판단에 적당
-            "top_p": 0.9,                         # 확률 분포 누적값 (안정적이면서 약간 유연)
-            "top_k": 1,                           # 확률 상위 k개만 고려 (결정적 출력)
-            "stop_sequences": [],                 # 별도 중단 문장 없음
-        }
+        temperature=0,                          
+        convert_system_message_to_human=True
     )
 
 
