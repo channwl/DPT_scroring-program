@@ -1,16 +1,22 @@
 # llm_config.py
-# 이 파일은 GPT (OpenAI 기반 LLM)를 초기화하는 함수입니다.
+# 이 파일은 LLM을 초기화하는 함수입니다.
 # API 키는 streamlit의 secrets 기능을 통해 안전하게 불러옵니다.
 
-from langchain_community.chat_models import ChatOpenAI
-import streamlit as st
+import google.generativeai as genai
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 def get_llm():
-    """
-    GPT 모델 객체를 반환합니다. 기본 모델은 'gpt-4o'이며, 온도는 0으로 설정되어 있습니다.
-    """
-    return ChatOpenAI(
-        openai_api_key=st.secrets["openai"]["API_KEY"],
-        model_name="gpt-4o",
-        temperature=0
+    return ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash-preview-04-17",
+        temperature=0,
+        convert_system_message_to_human=True,
+        generation_config={
+            "max_output_tokens": 2048,           # 생성 토큰 수 제한
+            "max_thought_tokens": 256,           # 내부 사고 토큰 수
+            "top_p": 1,
+            "top_k": 1,
+            "stop_sequences": [],
+        }
     )
+
+
