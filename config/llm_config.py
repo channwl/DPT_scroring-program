@@ -7,10 +7,10 @@ import streamlit as st
 
 def get_llm():
     """
-    GPT 모델 객체를 반환합니다. 기본 모델은 'gpt-4o'이며, 온도는 0으로 설정되어 있습니다.
+    GPT 모델 객체를 반환합니다. 기본 모델은 'gpt-4.1'이며, 온도는 0으로 설정되어 있습니다.
     """
     return ChatOpenAI(
         openai_api_key=st.secrets["openai"]["API_KEY"],
-        model_name="gpt-4o",
+        model_name="gpt-4.1",
         temperature=0
     )
