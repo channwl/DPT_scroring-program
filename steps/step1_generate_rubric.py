@@ -6,6 +6,7 @@ from utils.pdf_utils import extract_text_from_pdf
 from langchain.chains import LLMChain
 from langchain_core.prompts import PromptTemplate
 from config.llm_config import get_llm
+from langchain_core.prompts import PromptTemplate
 
 def generate_rubric(problem_text: str) -> str:
     template = """
@@ -18,29 +19,19 @@ def generate_rubric(problem_text: str) -> str:
 
 📌 작성 지침:
 1. 문제 번호와 배점은 문제 본문에서 **정확히 추출하여 반영**하세요.
-   - 예: "(4 points)" → "배점 총합: 4점"
-2. 각 문제마다 별도의 마크다운 표를 작성하세요.
-3. 표 구조는 아래 형식을 반드시 따르세요:
-   | 채점 항목 | 배점 | 세부 기준 |
-   |---|---|---|
-   | … | … | … |
-4. 표 아래에 다음 형식으로 배점을 작성하세요:
-   - **배점 총합: X점**
-5. 모든 표 생성이 끝난 후, 전체 배점 합계를 다음 형식으로 작성하세요:
-   - → 전체 배점 총합: XX점
-6. 문제 수를 잘 확인하여 문제수에 맞게 채점 기준을 생성해주세요.
-7. **한글로만 작성**하세요. 영어 사용 금지.
-
-이제 위 지침을 따라 채점 기준을 작성하세요.
+   ...
 """
 
+    prompt = PromptTemplate(
+        input_variables=["problem_text"],
+        template=template
+    )
+
     llm = get_llm()
-    prompt = PromptTemplate.from_template(template)
     chain = LLMChain(llm=llm, prompt=prompt)
     result = chain.invoke({"problem_text": problem_text})
+
     return result["text"]
-
-
 
 def run_step1():
     st.subheader("📄 STEP 1: 문제 업로드 및 채점 기준 생성")
