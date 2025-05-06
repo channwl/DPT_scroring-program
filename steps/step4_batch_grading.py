@@ -33,6 +33,7 @@ def run_step4():
                 name, sid, answer = student["name"], student["id"], student["text"]
 
                 prompt = f"""
+                
 당신은 대학 시험을 채점하는 GPT 채점자입니다.
 
 당신의 역할은, 사람이 작성한 "채점 기준"에 **엄격하게 따라** 학생의 답안을 채점하는 것입니다.  
@@ -70,8 +71,8 @@ def run_step4():
 **근거 문장**
 - 핵심 개념 설명: "텍스트 전처리는 토크나이징에서 시작한다", "불용어 제거가 필요하다"
 - 논리 전개: "이어서 모델에 입력하기 위한 절차를 구성했다"
-
 8. 그리고 채점 결과를 문제별로 묶어서 보여주세요.
+9. 채점 결과 점수는 전체 채점 점수여야합니다.
 """
                 result = grade_answer(prompt)
                 grading_result = result
@@ -110,21 +111,13 @@ def run_step4():
         st.subheader("📝 학생별 상세 답안 및 채점")
         for result in sorted_results:
             with st.expander(f"📄 {result['name']} ({result['id']}) - {result['score']}점"):
-                tab1, tab2, tab3 = st.tabs(["🔍 채점 근거 문장", "📑 채점 결과", "📘 원본 답안"])
+                tab1, tab2 = st.tabs(["📑 채점 결과", "📘 원본 답안"])
 
                 with tab1:
-                    st.markdown("**GPT가 선택한 평가 근거 문장입니다.**")
-                    if result["evidence_sentences"]:
-                        for i, sentence in enumerate(result["evidence_sentences"], 1):
-                            st.markdown(f"- **{i}.** {sentence}")
-                    else:
-                        st.info("근거 문장이 없습니다.")
-
-                with tab2:
                     st.markdown("**GPT 채점 결과**")
                     st.markdown(result["grading_result"])
 
-                with tab3:
+                with tab2:
                     st.markdown("**📄 문단 구조로 정리된 답안**")
                     formatted = apply_indentation(result["original_text"])
                     st.markdown(formatted, unsafe_allow_html=True)
