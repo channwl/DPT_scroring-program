@@ -1,7 +1,7 @@
 langchain>=0.1.14
 langchain-core>=0.1.31
 langchain-community>=0.0.21
-openai>=1.0.0
+google-generativeai
 tiktoken
 streamlit
 pdfplumber
