@@ -1,12 +1,13 @@
-langchain>=0.1.14
+langchain>=0.1.17
 langchain-core>=0.1.31
 langchain-community>=0.0.21
-google-generativeai
-langchain-google-genai
+google-generativeai>=0.3.2
+langchain-google-genai>=0.0.8
 tiktoken
-streamlit
+streamlit>=1.33.0
 pdfplumber
 pandas
 regex
 python-dotenv
+
 
