@@ -9,7 +9,7 @@ from config.llm_config import get_llm
 # GPT 모델 초기화
 llm = get_llm()
 
-# 채점 체인은 메모리를 사용하지 않음 (단발성 평가)
+# 채점 체인은 메모리를 사용하지 않음
 grading_prompt_template = PromptTemplate.from_template("""
 {input}
 """)
