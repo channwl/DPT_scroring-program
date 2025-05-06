@@ -1,6 +1,6 @@
 # grading_chain.py
 # 이 파일은 LangChain 기반의 답안 채점 체인을 정의합니다.
-# 채점 기준과 학생 답안을 기반으로 GPT가 마크다운 형식의 채점 결과를 출력합니다.
+# 채점 기준과 학생 답안을 기반으로 LLM이 마크다운 형식의 채점 결과를 출력합니다.
 
 from langchain.chains import LLMChain
 from langchain_core.prompts import PromptTemplate
