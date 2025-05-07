@@ -31,8 +31,17 @@ def process_student_pdfs(pdf_files):
     return answers, info
 
 
+
 def run_step2():
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
+
+    # 채점 결과 출력 전 디버깅용 OCR 텍스트 확인
+    if st.session_state.last_selected_student:
+        st.subheader("🪵 디버깅용: OCR 결과 확인")
+
+        if st.checkbox("📋 OCR 텍스트 보기 (디버깅용)", value=False):
+            ocr_debug_text = st.session_state.last_selected_student["text"]
+            st.text_area("OCR 추출된 텍스트", ocr_debug_text, height=400)
 
     if st.session_state.problem_text and st.session_state.problem_filename:
         st.subheader("📃 문제 내용")
