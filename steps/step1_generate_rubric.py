@@ -61,15 +61,15 @@ def run_step1():
     problem_pdf = st.file_uploader("📄 문제 PDF 업로드", type="pdf", key="problem_upload")
 
     if problem_pdf:
-    file_bytes = problem_pdf.read()
-    st.session_state.problem_pdf_bytes = file_bytes
-    st.session_state.problem_filename = problem_pdf.name
-    
-    #OCR 포함 텍스트 추출
-    text_pages = extract_text_with_image_ocr(file_bytes)
-    text = "\n\n".join(text_pages)
-    
-    st.session_state.problem_text = text
+        file_bytes = problem_pdf.read()
+        st.session_state.problem_pdf_bytes = file_bytes
+        st.session_state.problem_filename = problem_pdf.name
+
+        # OCR 포함 텍스트 추출
+        text_pages = extract_text_with_image_ocr(file_bytes)
+        text = "\n\n".join(text_pages)
+
+        st.session_state.problem_text = text
 
         rubric_key = f"rubric_{problem_pdf.name}"
 
@@ -96,3 +96,4 @@ def run_step1():
         if rubric_key in st.session_state.generated_rubrics:
             st.subheader("📊 채점 기준")
             st.markdown(st.session_state.generated_rubrics[rubric_key])
+
