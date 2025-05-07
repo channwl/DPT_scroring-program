@@ -7,6 +7,7 @@ from utils.pdf_utils import extract_text_from_pdf
 from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
 from chains.grading_chain import grade_answer
+from utils.pdf_utils import extract_text_with_image_ocr
 
 
 def process_student_pdfs(pdf_files):
@@ -14,12 +15,18 @@ def process_student_pdfs(pdf_files):
     for file in pdf_files:
         file.seek(0)
         file_bytes = file.read()
-        text = extract_text_from_pdf(file_bytes)
+
+        # 🔄 OCR 포함 텍스트 추출로 교체
+        text_pages = extract_text_with_image_ocr(file_bytes)
+        text = "\n\n".join(text_pages)
+
         text = clean_text_postprocess(text)
         name, sid = extract_info_from_filename(file.name)
+
         if len(text.strip()) > 20:
             answers.append(text)
             info.append({'name': name, 'id': sid, 'text': text})
+
     st.session_state.student_answers_data = info
     return answers, info
 
