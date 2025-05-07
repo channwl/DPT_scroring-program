@@ -1,9 +1,9 @@
 # utils/pdf_utils.py
 
-from pdf2image import convert_from_path
+from PIL import Image
 import pytesseract
 import pdfplumber
-from PIL import Image
+import io
 
 def extract_text_from_pdf(pdf_path: str, lang: str = 'eng+kor') -> str:
     """
@@ -19,20 +19,29 @@ def extract_text_from_pdf(pdf_path: str, lang: str = 'eng+kor') -> str:
 
     return extract_text_via_ocr(pdf_path, lang=lang)
 
-def extract_text_via_ocr(pdf_path: str, lang: str = 'eng+kor') -> str:
-    """
-    이미지 기반 PDF를 OCR로 텍스트 추출
-    """
-    try:
-        pages = convert_from_path(pdf_path, dpi=300)
-    except Exception as e:
-        return f"[OCR 실패] PDF 이미지를 로딩할 수 없습니다: {str(e)}"
+def extract_text_with_image_ocr(pdf_path: str) -> list[str]:
+    full_text_by_page = []
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            # 텍스트 추출
+            text = page.extract_text() or ""
 
-    full_text = ""
-    for i, page in enumerate(pages):
-        gray = page.convert("L")
-        bw = gray.point(lambda x: 0 if x < 140 else 255)
-        text = pytesseract.image_to_string(bw, lang=lang)
-        full_text += f"\n\n--- Page {i + 1} ---\n{text.strip()}"
+            # 이미지 OCR 추출
+            ocr_texts = []
+            for img_obj in page.images:
+                try:
+                    bbox = (img_obj["x0"], img_obj["top"], img_obj["x1"], img_obj["bottom"])
+                    cropped = page.crop(bbox).to_image(resolution=300)
+                    image_bytes = cropped.original.stream.get_data()
+                    pil_image = Image.open(io.BytesIO(image_bytes))
+                    
+                    # OCR 실행 (한국어/영어 혼합 가능)
+                    ocr_result = pytesseract.image_to_string(pil_image, lang="eng+kor")
+                    ocr_texts.append(ocr_result)
+                except Exception as e:
+                    ocr_texts.append(f"[OCR 실패: {str(e)}]")
 
-    return full_text.strip()
+            combined = text + "\n\n" + "\n".join(ocr_texts)
+            full_text_by_page.append(combined.strip())
+    return full_text_by_page
+
