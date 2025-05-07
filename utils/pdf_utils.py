@@ -1,24 +1,38 @@
-# pdf_utils.py
-# 이 파일은 PDF 파일에서 텍스트를 추출하는 유틸 함수들을 포함합니다.
-# pdfplumber를 이용하여 페이지 단위로 텍스트를 모아 문자열로 반환합니다.
+# utils/pdf_utils.py
 
+from pdf2image import convert_from_path
+import pytesseract
 import pdfplumber
-import io
+from PIL import Image
 
-def extract_text_from_pdf(pdf_data):
+def extract_text_from_pdf(pdf_path: str, lang: str = 'eng+kor') -> str:
     """
-    PDF 파일(bytes 또는 UploadedFile 객체)을 받아 텍스트를 문자열로 추출
+    텍스트 기반 PDF는 pdfplumber로, 이미지 기반은 OCR로 처리
     """
-    if isinstance(pdf_data, bytes):
-        pdf_stream = io.BytesIO(pdf_data)
-    else:
-        pdf_stream = io.BytesIO(pdf_data.read())
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            text = "\n".join([page.extract_text() or "" for page in pdf.pages])
+        if text.strip():
+            return text
+    except Exception as e:
+        print(f"[PDFPlumber 오류] {e}")
 
-    text = ""
-    with pdfplumber.open(pdf_stream) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + "\n"
+    return extract_text_via_ocr(pdf_path, lang=lang)
 
-    return text
+def extract_text_via_ocr(pdf_path: str, lang: str = 'eng+kor') -> str:
+    """
+    이미지 기반 PDF를 OCR로 텍스트 추출
+    """
+    try:
+        pages = convert_from_path(pdf_path, dpi=300)
+    except Exception as e:
+        return f"[OCR 실패] PDF 이미지를 로딩할 수 없습니다: {str(e)}"
+
+    full_text = ""
+    for i, page in enumerate(pages):
+        gray = page.convert("L")
+        bw = gray.point(lambda x: 0 if x < 140 else 255)
+        text = pytesseract.image_to_string(bw, lang=lang)
+        full_text += f"\n\n--- Page {i + 1} ---\n{text.strip()}"
+
+    return full_text.strip()
