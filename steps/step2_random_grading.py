@@ -10,17 +10,21 @@ from chains.grading_chain import grade_answer
 from utils.pdf_utils import extract_text_with_image_ocr
 
 
+import tempfile
+from utils.pdf_utils import extract_text_from_pdf
+
 def process_student_pdfs(pdf_files):
     answers, info = [], []
     for file in pdf_files:
-        file.seek(0)
-        file_bytes = file.read()
+        # 파일을 임시 저장하여 경로 추출
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+            tmp_file.write(file.read())
+            tmp_file_path = tmp_file.name
 
-        # 🔄 OCR 포함 텍스트 추출로 교체
-        text_pages = extract_text_with_image_ocr(file_bytes)
-        text = "\n\n".join(text_pages)
-
+        # 텍스트 + OCR 통합 추출
+        text = extract_text_from_pdf(tmp_file_path, lang="kor+eng")
         text = clean_text_postprocess(text)
+
         name, sid = extract_info_from_filename(file.name)
 
         if len(text.strip()) > 20:
