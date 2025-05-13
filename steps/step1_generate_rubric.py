@@ -3,11 +3,10 @@
 
 import streamlit as st
 from utils.pdf_utils import extract_text_from_pdf
-from utils.pdf_utils import extract_text_with_image_ocr
 from langchain.chains import LLMChain
 from langchain_core.prompts import PromptTemplate
 from config.llm_config import get_llm
-from langchain_core.prompts import PromptTemplate
+import tempfile
 
 def generate_rubric(problem_text: str) -> str:
     template = """
@@ -61,16 +60,15 @@ def run_step1():
     problem_pdf = st.file_uploader("📄 문제 PDF 업로드", type="pdf", key="problem_upload")
 
     if problem_pdf:
-        file_bytes = problem_pdf.read()
-        st.session_state.problem_pdf_bytes = file_bytes
         st.session_state.problem_filename = problem_pdf.name
 
-        # OCR 포함 텍스트 추출
-        text_pages = extract_text_with_image_ocr(file_bytes)
-        text = "\n\n".join(text_pages)
+        # 임시파일 저장 → OCR 포함 텍스트 추출
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+            tmp_file.write(problem_pdf.read())
+            tmp_path = tmp_file.name
 
+        text = extract_text_from_pdf(tmp_path, lang="kor+eng")
         st.session_state.problem_text = text
-
         rubric_key = f"rubric_{problem_pdf.name}"
 
         st.subheader("📃 문제 내용")
@@ -96,4 +94,3 @@ def run_step1():
         if rubric_key in st.session_state.generated_rubrics:
             st.subheader("📊 채점 기준")
             st.markdown(st.session_state.generated_rubrics[rubric_key])
-
