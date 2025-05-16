@@ -7,6 +7,10 @@ from utils.pdf_utils import extract_text_from_pdf
 from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
 from chains.grading_chain import grade_answer
+from config.llm_config import get_llm
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableSequence
+from langchain_core.output_parsers import StrOutputParser
 
 # LangChain 기반 GPT 채점 기준 생성 체인 정의
 llm = get_llm()
