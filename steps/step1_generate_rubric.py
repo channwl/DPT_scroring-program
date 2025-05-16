@@ -62,14 +62,15 @@ def run_step1():
     if problem_pdf:
         st.session_state.problem_filename = problem_pdf.name
 
-        # 임시파일 저장 → OCR 포함 텍스트 추출
+        # 임시파일 저장 → PDF 텍스트 추출
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(problem_pdf.read())
-            tmp_path = tmp_file.name
+        tmp_file.write(problem_pdf.read())
+        tmp_path = tmp_file.name
 
-        text = extract_text_from_pdf(tmp_path, lang="kor+eng")
+        # ✅ OCR 제거에 따라 lang 인자 제거
+        text = extract_text_from_pdf(tmp_path)
         st.session_state.problem_text = text
-        rubric_key = f"rubric_{problem_pdf.name}"
+
 
         st.subheader("📃 문제 내용")
         st.write(text)
