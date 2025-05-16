@@ -30,7 +30,6 @@ def run_step2():
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
 
     # 디버깅용 텍스트 확인
-    # 디버깅용 텍스트 확인
     if st.session_state.get("last_selected_student"):
         st.subheader("🪵 디버깅용: 텍스트 확인")
 
@@ -64,7 +63,6 @@ def run_step2():
                     selected_student = info_list[idx]
                     answer = all_answers[idx]
                     
-                    def generate_rubric(problem_text: str) -> str:
                     prompt = f"""당신은 대학 시험을 채점하는 GPT 채점자입니다.
 
 당신의 역할은, 사람이 작성한 "채점 기준"에 **엄격하게 따라** 학생의 답안을 채점하는 것입니다.  
