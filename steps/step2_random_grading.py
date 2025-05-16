@@ -8,32 +8,35 @@ from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
 from chains.grading_chain import grade_answer
 
-
 def process_student_pdfs(pdf_files):
     answers, info = [], []
+
     for file in pdf_files:
         try:
             file.seek(0)
             file_bytes = file.read()
 
-            # 🔍 텍스트 추출
+            # 텍스트 추출
             text = extract_text_from_pdf(file_bytes)
-            print("📄 PDF 텍스트 길이:", len(text))
+            st.text(f"📄 PDF 텍스트 길이: {len(text)}")
 
+            # 클린업
             text = clean_text_postprocess(text)
-            print("🧹 클린 텍스트 길이:", len(text))
+            st.text(f"🧹 정리된 텍스트 길이: {len(text)}")
 
+            # 이름 및 학번 추출
             name, sid = extract_info_from_filename(file.name)
-            print(f"👤 추출된 이름: {name}, 학번: {sid}")
+            st.text(f"👤 파일명에서 추출된 이름: {name}, 학번: {sid}")
 
             if len(text.strip()) > 20:
                 answers.append(text)
                 info.append({'name': name, 'id': sid, 'text': text})
+            else:
+                st.warning(f"⚠️ {file.name}에서 충분한 텍스트를 추출하지 못했습니다.")
 
         except Exception as e:
-            print(f"❌ PDF 처리 중 오류 발생: {file.name}")
-            print(str(e))
-            raise RuntimeError(f"학생 PDF 처리 중 오류 발생: {file.name}\n{str(e)}")
+            st.error(f"❌ {file.name} 처리 중 오류 발생: {str(e)}")
+            return [], []  # 오류 발생 시 즉시 중단
 
     st.session_state.student_answers_data = info
     return answers, info
