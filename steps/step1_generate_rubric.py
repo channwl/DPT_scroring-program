@@ -9,7 +9,7 @@ from config.llm_config import get_llm
 import tempfile
 
 def generate_rubric(problem_text: str) -> str:
-    template = """
+    prompt = """
 당신은 대학 기말고사를 채점하는 전문가 GPT입니다.
 
 다음은 PDF에서 추출한 **실제 시험 문제 본문입니다.**
@@ -42,17 +42,6 @@ def generate_rubric(problem_text: str) -> str:
 
 이제 채점 기준을 생성하세요.
 """
-
-    prompt = PromptTemplate(
-        input_variables=["problem_text"],
-        template=template
-    )
-
-    llm = get_llm()
-    chain = LLMChain(llm=llm, prompt=prompt)
-    result = chain.invoke({"problem_text": problem_text})
-
-    return result["text"]
 
 def run_step1():
     st.subheader("📄 STEP 1: 문제 업로드 및 채점 기준 생성")
