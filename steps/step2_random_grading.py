@@ -5,16 +5,6 @@ from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
 from chains.grading_chain import grade_answer
 from utils.pdf_utils import extract_text_with_image_ocr
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
-
-grading_prompt_template = PromptTemplate(
-    input_variables=["input"],
-    template="{input}"
-)
-
-grading_chain = LLMChain(llm=llm, prompt=grading_prompt_template)
-
 
 def process_student_pdfs(pdf_files):
     answers, info = [], []
@@ -105,7 +95,6 @@ def run_step2():
 6. 표 아래에 "**총점: XX점**"을 반드시 작성하세요. 모든 부여 점수의 합계입니다.
 7. 사진 파일이 있으면 OCR로 인식해주세요.
 """
-
 
                     with st.spinner("GPT가 채점 중입니다..."):
                         result = grade_answer(prompt)
