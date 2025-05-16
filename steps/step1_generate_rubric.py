@@ -42,14 +42,14 @@ def generate_rubric(problem_text: str) -> str:
 
 이제 채점 기준을 생성하세요.
 """
-try:
+    try:
         llm = get_llm()  # LLM 초기화
         prompt_template = PromptTemplate.from_template("{prompt}")
         rubric_chain = LLMChain(llm=llm, prompt=prompt_template)
 
         result = rubric_chain.invoke({"prompt": prompt})
         return result.get("text", "❗ 응답에 'text' 키가 없습니다.")
-except Exception as e:
+    except Exception as e:
         st.error("❌ 채점 기준 생성 중 오류가 발생했습니다.")
         st.exception(e)
         return f"[오류] {str(e)}"
