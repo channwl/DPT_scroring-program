@@ -89,6 +89,10 @@ def run_step2():
 6. 표 아래에 "**총점: XX점**"을 반드시 작성하세요. 모든 부여 점수의 합계입니다.
 """
 
+                    # 🔍 프롬프트 길이 및 내용 확인용
+                    st.write("📏 프롬프트 길이:", len(prompt))
+                    st.code(prompt[:3000] + "\n\n... (이후 생략)", language="markdown")
+
                     with st.spinner("GPT가 채점 중입니다..."):
                         result = grade_answer(prompt)
                         st.session_state.last_grading_result = result
