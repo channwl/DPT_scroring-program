@@ -66,14 +66,15 @@ def run_step2():
 5. 표 아래에 반드시 "**배점 총합: XX점**"을 작성하세요.
 """
 
-                    st.text("📦 Prompt 길이 확인")
-                    st.write(f"Rubric 길이: {len(rubric)}자")
-                    st.write(f"Answer 길이: {len(answer)}자")
-                    st.write(f"Prompt 전체 길이: {len(prompt)}자")
+                    # 채점 prompt 생성 후 이 위치!
+                    print("🧪 [DEBUG] rubric 길이:", len(rubric))
+                    print("🧪 [DEBUG] answer 길이:", len(answer))
+                    print("🧪 [DEBUG] prompt 길이:", len(prompt))
+                    print("🧪 [DEBUG] prompt 미리보기 앞:", prompt[:500])
+                    print("🧪 [DEBUG] prompt 미리보기 뒤:", prompt[-500:])
 
-                    st.subheader("🔍 생성된 Prompt 일부 미리보기")
-                    st.code(prompt[:700], language="markdown")
-
+                    # 💥 강제 종료로 Streamlit이 오류 뱉게 하기
+                    raise RuntimeError("✅ 디버깅용 강제 종료: prompt 확인 완료")
 
                     with st.spinner("GPT가 채점 중입니다..."):
                         result = grade_answer(prompt)
