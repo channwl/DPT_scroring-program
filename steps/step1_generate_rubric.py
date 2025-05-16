@@ -16,7 +16,7 @@ rubric_chain = LLMChain(llm=llm, prompt=rubric_prompt_template)
 # 채점 기준 생성 함수
 def generate_rubric(problem_text: str) -> str:
     prompt = f"""
-당신은 대학 기말고사를 채점하는 전문가 GPT입니다.
+당신은 대학 시험을 채점하는 전문가 GPT입니다.
 
 다음은 PDF에서 추출한 **실제 시험 문제 본문입니다.**
 - 각 문제의 시작은 "1.", "2.", ..., "7."으로 되어 있습니다.
@@ -44,7 +44,6 @@ def generate_rubric(problem_text: str) -> str:
    → 전체 배점 총합: 30점
 5. 모든 출력은 **한글로만** 작성하세요. 영어는 절대 사용하지 마세요.
 6. 문제 수를 줄이거나 임의로 문제를 묶으면 안 됩니다.
-7. 사진 파일이 있으면 OCR로 인식해주세요.
 
 이제 채점 기준을 생성하세요.
     """
