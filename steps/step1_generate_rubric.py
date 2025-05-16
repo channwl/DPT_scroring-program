@@ -2,14 +2,20 @@
 # 이 파일은 STEP 1: 문제 업로드 및 채점 기준 생성을 위한 Streamlit UI 및 실행 로직을 포함합니다.
 
 import streamlit as st
+import tempfile
 from utils.pdf_utils import extract_text_from_pdf
 from langchain.chains import LLMChain
 from langchain_core.prompts import PromptTemplate
 from config.llm_config import get_llm
-import tempfile
 
+# LangChain 기반 GPT 채점 기준 생성 체인 정의
+llm = get_llm()
+rubric_prompt_template = PromptTemplate.from_template("{input}")
+rubric_chain = LLMChain(llm=llm, prompt=rubric_prompt_template)
+
+# 채점 기준 생성 함수
 def generate_rubric(problem_text: str) -> str:
-    prompt = """
+    prompt = f"""
 당신은 대학 기말고사를 채점하는 전문가 GPT입니다.
 
 다음은 PDF에서 추출한 **실제 시험 문제 본문입니다.**
@@ -41,19 +47,17 @@ def generate_rubric(problem_text: str) -> str:
 7. 사진 파일이 있으면 OCR로 인식해주세요.
 
 이제 채점 기준을 생성하세요.
-"""
-    try:
-        llm = get_llm()  # LLM 초기화
-        prompt_template = PromptTemplate.from_template("{prompt}")
-        rubric_chain = LLMChain(llm=llm, prompt=prompt_template)
+    """
 
-        result = rubric_chain.invoke({"prompt": prompt})
+    try:
+        result = rubric_chain.invoke({"input": prompt})
         return result.get("text", "❗ 응답에 'text' 키가 없습니다.")
     except Exception as e:
         st.error("❌ 채점 기준 생성 중 오류가 발생했습니다.")
         st.exception(e)
         return f"[오류] {str(e)}"
 
+# STEP 1 실행 UI
 def run_step1():
     st.subheader("📄 STEP 1: 문제 업로드 및 채점 기준 생성")
 
@@ -62,18 +66,20 @@ def run_step1():
     if problem_pdf:
         st.session_state.problem_filename = problem_pdf.name
 
-        # 임시파일 저장 → PDF 텍스트 추출
+        # 임시파일 저장 → 텍스트 추출
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-        tmp_file.write(problem_pdf.read())
-        tmp_path = tmp_file.name
+            tmp_file.write(problem_pdf.read())
+            tmp_path = tmp_file.name
 
-        # ✅ OCR 제거에 따라 lang 인자 제거
         text = extract_text_from_pdf(tmp_path)
         st.session_state.problem_text = text
-
+        rubric_key = f"rubric_{problem_pdf.name}"
 
         st.subheader("📃 문제 내용")
-        st.write(text)
+        if not text.strip():
+            st.warning("⚠️ PDF에서 텍스트가 추출되지 않았습니다.")
+        else:
+            st.write(text)
 
         if rubric_key not in st.session_state.generated_rubrics:
             if st.button("📐 채점 기준 생성"):
