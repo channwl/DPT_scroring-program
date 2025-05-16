@@ -1,26 +1,23 @@
-# step2_random_grading.py
-# 이 파일은 STEP 2: 학생 답안 PDF 업로드 및 무작위 채점을 실행하는 Streamlit UI 로직입니다.
-
 import streamlit as st
 import random
-import tempfile
 from utils.pdf_utils import extract_text_from_pdf
 from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
 from chains.grading_chain import grade_answer
+from utils.pdf_utils import extract_text_with_image_ocr
+
 
 def process_student_pdfs(pdf_files):
     answers, info = [], []
     for file in pdf_files:
-        # 파일을 임시 저장하여 경로 추출
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(file.read())
-            tmp_file_path = tmp_file.name
+        file.seek(0)
+        file_bytes = file.read()
 
-        # 텍스트 + OCR 통합 추출
-        text = extract_text_from_pdf(tmp_file_path, lang="kor+eng")
+        # 🔄 OCR 포함 텍스트 추출로 교체
+        text_pages = extract_text_with_image_ocr(file_bytes)
+        text = "\n\n".join(text_pages)
+
         text = clean_text_postprocess(text)
-
         name, sid = extract_info_from_filename(file.name)
 
         if len(text.strip()) > 20:
