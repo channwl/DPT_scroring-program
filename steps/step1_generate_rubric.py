@@ -4,14 +4,19 @@
 import streamlit as st
 import tempfile
 from utils.pdf_utils import extract_text_from_pdf
-from langchain.chains import LLMChain
-from langchain_core.prompts import PromptTemplate
-from config.llm_config import get_llm
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableSequence
+from langchain_core.output_parsers import StrOutputParser
 
 # LangChain 기반 GPT 채점 기준 생성 체인 정의
 llm = get_llm()
-rubric_prompt_template = PromptTemplate.from_template("{input}")
-rubric_chain = LLMChain(llm=llm, prompt=rubric_prompt_template)
+
+rubric_prompt_template = ChatPromptTemplate.from_messages([
+    ("system", "당신은 대학 시험을 채점하는 전문가 GPT입니다."),
+    ("user", "{input}")
+])
+
+rubric_chain = rubric_prompt_template | llm | StrOutputParser()
 
 # 채점 기준 생성 함수
 def generate_rubric(problem_text: str) -> str:
@@ -50,7 +55,7 @@ def generate_rubric(problem_text: str) -> str:
 
     try:
         result = rubric_chain.invoke({"input": prompt})
-        return result.get("text", "❗ 응답에 'text' 키가 없습니다.")
+        return result  # 그냥 문자열 반환
     except Exception as e:
         st.error("❌ 채점 기준 생성 중 오류가 발생했습니다.")
         st.exception(e)
