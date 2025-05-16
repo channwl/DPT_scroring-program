@@ -21,5 +21,8 @@ grading_chain = LLMChain(
 
 # 외부 호출용 래퍼 함수
 def grade_answer(prompt: str) -> str:
-    result = grading_chain.invoke({"input": prompt})
-    return result["text"]
+    try:
+        result = grading_chain.invoke({"input": prompt})
+        return result.get("text", "❗ GPT 응답에 'text' 키가 없습니다.")
+    except Exception as e:
+        return f"[오류] {str(e)}"
