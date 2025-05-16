@@ -1,42 +1,28 @@
 import streamlit as st
 import random
-import tempfile
-
 from utils.pdf_utils import extract_text_from_pdf
 from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
 from chains.grading_chain import grade_answer
 
+
 def process_student_pdfs(pdf_files):
     answers, info = [], []
     for file in pdf_files:
-        # 임시파일에 저장 후 텍스트 추출
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(file.read())
-            tmp_path = tmp_file.name
-
-        text = extract_text_from_pdf(tmp_path)
+        file.seek(0)
+        file_bytes = file.read()
+        text = extract_text_from_pdf(file_bytes)
         text = clean_text_postprocess(text)
         name, sid = extract_info_from_filename(file.name)
-
         if len(text.strip()) > 20:
             answers.append(text)
             info.append({'name': name, 'id': sid, 'text': text})
-
     st.session_state.student_answers_data = info
     return answers, info
 
+
 def run_step2():
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
-
-    # 디버깅용 텍스트 확인
-    if st.session_state.get("last_selected_student"):
-        st.subheader("🪵 디버깅용: 텍스트 확인")
-
-        if st.checkbox("📋 추출된 텍스트 보기 (디버깅용)", value=False):
-            extracted_text = st.session_state["last_selected_student"]["text"]
-            st.text_area("📄 추출된 텍스트", extracted_text, height=400)
-
 
     if st.session_state.problem_text and st.session_state.problem_filename:
         st.subheader("📃 문제 내용")
@@ -93,26 +79,6 @@ def run_step2():
 6. 표 아래에 "**총점: XX점**"을 반드시 작성하세요. 모든 부여 점수의 합계입니다.
 7. 사진 파일이 있으면 OCR로 인식해주세요.
 """
-
-                    # 🔍 디버깅용: 채점 기준, 학생 답안, 전체 프롬프트 길이 확인
-                    st.subheader("🐞 디버깅 정보 (LLM 입력 값 확인)")
-
-                    with st.expander("📊 채점 기준 (rubric)", expanded=False):
-                        st.text_area("📌 채점 기준", rubric, height=400)
-
-                    with st.expander("📝 학생 답안 (answer)", expanded=False):
-                        st.text_area("📌 학생 답안", answer, height=400)
-
-                    with st.expander("🧠 GPT 프롬프트 전체 (최종 prompt)", expanded=True):
-                        st.text_area("📥 GPT에게 전달된 프롬프트", prompt, height=600)
-
-                    # 문자 길이 및 대략적인 토큰 길이 추정
-                    char_len = len(prompt)
-                    estimated_token_len = char_len // 4  # 평균적으로 1 token ≈ 3~4 characters (한글 기준)
-
-                    st.write(f"🧮 전체 프롬프트 문자 길이: `{char_len}`")
-                    st.write(f"🔢 추정 토큰 수 (약): `{estimated_token_len}` (GPT-4 Turbo 한계 ≈ 128k, GPT-4 ≈ 8k)")
-
 
                     with st.spinner("GPT가 채점 중입니다..."):
                         result = grade_answer(prompt)
