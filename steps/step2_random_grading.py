@@ -85,21 +85,25 @@ def run_step2():
 5. 표 아래에 반드시 "**배점 총합: XX점**"을 작성하세요.
 """
 
-                    # 채점 prompt 생성 후 이 위치!
-                    print("🧪 [DEBUG] rubric 길이:", len(rubric))
-                    print("🧪 [DEBUG] answer 길이:", len(answer))
-                    print("🧪 [DEBUG] prompt 길이:", len(prompt))
-                    print("🧪 [DEBUG] prompt 미리보기 앞:", prompt[:500])
-                    print("🧪 [DEBUG] prompt 미리보기 뒤:", prompt[-500:])
+                    if not rubric or not answer or len(answer.strip()) < 30:
+                        st.error("❌ rubric 또는 answer가 비어 있거나 너무 짧습니다.")
+                        return
 
-                    # 💥 강제 종료로 Streamlit이 오류 뱉게 하기
-                    raise RuntimeError("✅ 디버깅용 강제 종료: prompt 확인 완료")
+                    if len(prompt) > 8000:
+                        st.warning("⚠️ prompt가 너무 깁니다. 채점 기준이나 답안을 요약해주세요.")
+                        return
 
                     with st.spinner("GPT가 채점 중입니다..."):
                         result = grade_answer(prompt)
-                        st.session_state.last_grading_result = result
-                        st.session_state.last_selected_student = selected_student
-                        st.success("✅ 채점 완료")
+
+                        if result.startswith("[오류]"):
+                        st.error(result)
+                        return
+
+    st.session_state.last_grading_result = result
+    st.session_state.last_selected_student = selected_student
+    st.success("✅ 채점 완료")
+
 
     else:
         st.warning("먼저 STEP 1에서 문제를 업로드해주세요.")
