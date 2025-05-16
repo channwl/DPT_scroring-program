@@ -20,17 +20,16 @@ def process_student_pdfs(pdf_files):
     st.session_state.student_answers_data = info
     return answers, info
 
-
 def run_step2():
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
 
-    # 채점 결과 출력 전 디버깅용 OCR 텍스트 확인
+    # 디버깅용 텍스트 확인
     if st.session_state.last_selected_student:
-        st.subheader("🪵 디버깅용: OCR 결과 확인")
+        st.subheader("🪵 디버깅용: 텍스트 확인")
 
-        if st.checkbox("📋 OCR 텍스트 보기 (디버깅용)", value=False):
-            ocr_debug_text = st.session_state.last_selected_student["text"]
-            st.text_area("OCR 추출된 텍스트", ocr_debug_text, height=400)
+        if st.checkbox("📋 추출된 텍스트 보기 (디버깅용)", value=False):
+            extracted_text = st.session_state.last_selected_student["text"]
+            st.text_area("📄 추출된 텍스트", extracted_text, height=400)
 
     if st.session_state.problem_text and st.session_state.problem_filename:
         st.subheader("📃 문제 내용")
@@ -56,7 +55,7 @@ def run_step2():
                     idx = random.randint(0, len(all_answers) - 1)
                     selected_student = info_list[idx]
                     answer = all_answers[idx]
-
+                    
                     prompt = f"""당신은 대학 시험을 채점하는 GPT 채점자입니다.
 
 당신의 역할은, 사람이 작성한 "채점 기준"에 **엄격하게 따라** 학생의 답안을 채점하는 것입니다.  
