@@ -5,6 +5,15 @@ from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
 from chains.grading_chain import grade_answer
 from utils.pdf_utils import extract_text_with_image_ocr
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+
+grading_prompt_template = PromptTemplate(
+    input_variables=["input"],
+    template="{input}"
+)
+
+grading_chain = LLMChain(llm=llm, prompt=grading_prompt_template)
 
 
 def process_student_pdfs(pdf_files):
