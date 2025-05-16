@@ -1,5 +1,6 @@
 import streamlit as st
 import random
+import tempfile
 from utils.pdf_utils import extract_text_from_pdf
 from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
@@ -9,14 +10,20 @@ from chains.grading_chain import grade_answer
 def process_student_pdfs(pdf_files):
     answers, info = [], []
     for file in pdf_files:
-        file.seek(0)
-        file_bytes = file.read()
-        text = extract_text_from_pdf(file_bytes)
+        # 임시 파일로 저장 후 처리
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+            tmp_file.write(file.read())
+            tmp_path = tmp_file.name
+            
+        # 파일 경로로 텍스트 추출
+        text = extract_text_from_pdf(tmp_path)
         text = clean_text_postprocess(text)
         name, sid = extract_info_from_filename(file.name)
+        
         if len(text.strip()) > 20:
             answers.append(text)
             info.append({'name': name, 'id': sid, 'text': text})
+    
     st.session_state.student_answers_data = info
     return answers, info
 
@@ -24,7 +31,7 @@ def process_student_pdfs(pdf_files):
 def run_step2():
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
 
-    if st.session_state.problem_text and st.session_state.problem_filename:
+    if 'problem_text' in st.session_state and 'problem_filename' in st.session_state:
         st.subheader("📃 문제 내용")
         st.write(st.session_state.problem_text)
 
@@ -41,10 +48,13 @@ def run_step2():
                 st.warning("채점 기준이 없습니다. STEP 1에서 먼저 생성해주세요.")
             else:
                 if st.button("🎯 무작위 채점 실행"):
-                    all_answers, info_list = process_student_pdfs(student_pdfs)
+                    with st.spinner("학생 답안을 처리 중입니다..."):
+                        all_answers, info_list = process_student_pdfs(student_pdfs)
+                        
                     if not all_answers:
                         st.warning("답안을 찾을 수 없습니다.")
                         return
+                        
                     idx = random.randint(0, len(all_answers) - 1)
                     selected_student = info_list[idx]
                     answer = all_answers[idx]
@@ -77,7 +87,6 @@ def run_step2():
 4. "평가 근거"는 반드시 학생 답안에서 근거를 발췌하여 한글로 설명하세요. 추상적인 표현(예: '좋다', '괜찮다')은 사용 금지입니다.
 5. 모든 출력은 **한글로만 작성**하고, 영어는 절대 사용하지 마세요.
 6. 표 아래에 "**총점: XX점**"을 반드시 작성하세요. 모든 부여 점수의 합계입니다.
-7. 사진 파일이 있으면 OCR로 인식해주세요.
 """
 
                     with st.spinner("GPT가 채점 중입니다..."):
@@ -91,7 +100,7 @@ def run_step2():
         if st.button("STEP 1로 이동"):
             st.session_state.step = 1
 
-    if st.session_state.last_grading_result and st.session_state.last_selected_student:
+    if 'last_grading_result' in st.session_state and 'last_selected_student' in st.session_state:
         stu = st.session_state.last_selected_student
         st.subheader(f"📋 채점 결과 - {stu['name']} ({stu['id']})")
         st.markdown(st.session_state.last_grading_result)
