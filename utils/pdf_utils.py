@@ -1,14 +1,24 @@
-import pdfplumber
+# pdf_utils.py
+# 이 파일은 PDF 파일에서 텍스트를 추출하는 유틸 함수들을 포함합니다.
+# pdfplumber를 이용하여 페이지 단위로 텍스트를 모아 문자열로 반환합니다.
 
-def extract_text_from_pdf(pdf_path: str) -> str:
+import pdfplumber
+import io
+
+def extract_text_from_pdf(pdf_data):
     """
-    텍스트 기반 PDF에서 텍스트를 추출합니다.
-    OCR 처리는 하지 않습니다.
+    PDF 파일(bytes 또는 UploadedFile 객체)을 받아 텍스트를 문자열로 추출
     """
-    try:
-        with pdfplumber.open(pdf_path) as pdf:
-            text = "\n".join([page.extract_text() or "" for page in pdf.pages])
-        return text.strip()
-    except Exception as e:
-        print(f"[PDF 텍스트 추출 오류] {e}")
-        return ""
+    if isinstance(pdf_data, bytes):
+        pdf_stream = io.BytesIO(pdf_data)
+    else:
+        pdf_stream = io.BytesIO(pdf_data.read())
+
+    text = ""
+    with pdfplumber.open(pdf_stream) as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+
+    return text
