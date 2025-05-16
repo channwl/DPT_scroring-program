@@ -6,13 +6,17 @@ import pdfplumber
 import io
 
 def extract_text_from_pdf(pdf_data):
-    """
-    PDF 파일(bytes 또는 UploadedFile 객체)을 받아 텍스트를 문자열로 추출
-    """
+    import os
+
     if isinstance(pdf_data, bytes):
         pdf_stream = io.BytesIO(pdf_data)
-    else:
+    elif hasattr(pdf_data, "read"):  # Streamlit UploadedFile
         pdf_stream = io.BytesIO(pdf_data.read())
+    elif isinstance(pdf_data, str) and os.path.exists(pdf_data):  # 파일 경로
+        with open(pdf_data, "rb") as f:
+            pdf_stream = io.BytesIO(f.read())
+    else:
+        raise ValueError("지원되지 않는 입력 형식입니다.")
 
     text = ""
     with pdfplumber.open(pdf_stream) as pdf:
@@ -22,3 +26,4 @@ def extract_text_from_pdf(pdf_data):
                 text += page_text + "\n"
 
     return text
+
