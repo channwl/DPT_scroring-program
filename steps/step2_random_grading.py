@@ -115,5 +115,7 @@ def run_step2():
     # 결과 표시
     if 'last_grading_result' in st.session_state and 'last_selected_student' in st.session_state:
         stu = st.session_state.last_selected_student
+        st.write("🧪 last_selected_student:", st.session_state.get("last_selected_student"))
+        st.write("🧪 타입:", type(st.session_state.get("last_selected_student")))
         st.subheader(f"📋 채점 결과 - {stu['name']} ({stu['id']})")
         st.markdown(st.session_state.last_grading_result)
