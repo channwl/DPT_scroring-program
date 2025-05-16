@@ -8,6 +8,15 @@ from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
 from chains.grading_chain import grade_answer
 
+# LangChain 기반 GPT 채점 기준 생성 체인 정의
+llm = get_llm()
+
+rubric_prompt_template = ChatPromptTemplate.from_messages([
+    ("system", "당신은 대학 시험을 채점하는 전문가 GPT입니다."),
+    ("user", "{input}")
+])
+
+rubric_chain = rubric_prompt_template | llm | StrOutputParser()
 def process_student_pdfs(pdf_files):
     answers, info = [], []
 
