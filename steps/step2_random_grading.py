@@ -64,6 +64,7 @@ def run_step2():
                     selected_student = info_list[idx]
                     answer = all_answers[idx]
                     
+                    def generate_rubric(problem_text: str) -> str:
                     prompt = f"""당신은 대학 시험을 채점하는 GPT 채점자입니다.
 
 당신의 역할은, 사람이 작성한 "채점 기준"에 **엄격하게 따라** 학생의 답안을 채점하는 것입니다.  
