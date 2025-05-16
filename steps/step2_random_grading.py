@@ -24,12 +24,14 @@ def run_step2():
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
 
     # 디버깅용 텍스트 확인
-    if st.session_state.last_selected_student:
+    # 디버깅용 텍스트 확인
+    if st.session_state.get("last_selected_student"):
         st.subheader("🪵 디버깅용: 텍스트 확인")
 
         if st.checkbox("📋 추출된 텍스트 보기 (디버깅용)", value=False):
-            extracted_text = st.session_state.last_selected_student["text"]
+            extracted_text = st.session_state["last_selected_student"]["text"]
             st.text_area("📄 추출된 텍스트", extracted_text, height=400)
+
 
     if st.session_state.problem_text and st.session_state.problem_filename:
         st.subheader("📃 문제 내용")
