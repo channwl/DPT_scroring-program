@@ -95,6 +95,26 @@ def run_step2():
 7. 사진 파일이 있으면 OCR로 인식해주세요.
 """
 
+                    # 🔍 디버깅용: 채점 기준, 학생 답안, 전체 프롬프트 길이 확인
+st.subheader("🐞 디버깅 정보 (LLM 입력 값 확인)")
+
+with st.expander("📊 채점 기준 (rubric)", expanded=False):
+    st.text_area("📌 채점 기준", rubric, height=400)
+
+with st.expander("📝 학생 답안 (answer)", expanded=False):
+    st.text_area("📌 학생 답안", answer, height=400)
+
+with st.expander("🧠 GPT 프롬프트 전체 (최종 prompt)", expanded=True):
+    st.text_area("📥 GPT에게 전달된 프롬프트", prompt, height=600)
+
+# 문자 길이 및 대략적인 토큰 길이 추정
+char_len = len(prompt)
+estimated_token_len = char_len // 4  # 평균적으로 1 token ≈ 3~4 characters (한글 기준)
+
+st.write(f"🧮 전체 프롬프트 문자 길이: `{char_len}`")
+st.write(f"🔢 추정 토큰 수 (약): `{estimated_token_len}` (GPT-4 Turbo 한계 ≈ 128k, GPT-4 ≈ 8k)")
+
+
                     with st.spinner("GPT가 채점 중입니다..."):
                         result = grade_answer(prompt)
                         st.session_state.last_grading_result = result
