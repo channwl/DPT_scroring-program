@@ -8,7 +8,4 @@ pdfplumber
 pandas
 regex
 python-dotenv
-pdf2image
-pytesseract
-pillow
-pymupdf
+
