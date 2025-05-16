@@ -29,7 +29,6 @@ def process_student_pdfs(pdf_files):
 
 
 def run_step2():
-
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
 
     if 'problem_text' in st.session_state and 'problem_filename' in st.session_state:
@@ -51,15 +50,20 @@ def run_step2():
                 if st.button("🎯 무작위 채점 실행"):
                     with st.spinner("학생 답안을 처리 중입니다..."):
                         all_answers, info_list = process_student_pdfs(student_pdfs)
-                        
+
                     if not all_answers:
                         st.warning("답안을 찾을 수 없습니다.")
                         return
-                        
+
+                    # 무작위 선택
                     idx = random.randint(0, len(all_answers) - 1)
                     selected_student = info_list[idx]
                     answer = all_answers[idx]
-                    
+
+                    # 답안 길이 제한 (예방적 차단)
+                    MAX_LENGTH = 4000
+                    trimmed_answer = answer[:MAX_LENGTH]
+
                     prompt = f"""당신은 대학 시험을 채점하는 GPT 채점자입니다.
 
 당신의 역할은, 사람이 작성한 "채점 기준"에 **엄격하게 따라** 학생의 답안을 채점하는 것입니다.  
@@ -71,7 +75,7 @@ def run_step2():
 {rubric}
 
 학생 답안:
-{answer}
+{trimmed_answer}
 
 ---
 
@@ -90,21 +94,25 @@ def run_step2():
 6. 표 아래에 "**총점: XX점**"을 반드시 작성하세요. 모든 부여 점수의 합계입니다.
 """
 
-                    # 🔍 프롬프트 길이 및 내용 확인용
                     st.write("📏 프롬프트 길이:", len(prompt))
-                    st.code(prompt[:3000] + "\n\n... (이후 생략)", language="markdown")
+                    st.code(prompt[:2000] + "\n\n... (이후 생략)", language="markdown")
 
                     with st.spinner("GPT가 채점 중입니다..."):
-                        result = grade_answer(prompt)
-                        st.session_state.last_grading_result = result
-                        st.session_state.last_selected_student = selected_student
-                        st.success("✅ 채점 완료")
+                        try:
+                            result = grade_answer(prompt)
+                            st.session_state.last_grading_result = result
+                            st.session_state.last_selected_student = selected_student
+                            st.success("✅ 채점 완료")
+                        except Exception as e:
+                            st.error("❌ GPT 채점 중 오류 발생")
+                            st.exception(e)
 
     else:
         st.warning("먼저 STEP 1에서 문제를 업로드해주세요.")
         if st.button("STEP 1로 이동"):
             st.session_state.step = 1
 
+    # 결과 표시
     if 'last_grading_result' in st.session_state and 'last_selected_student' in st.session_state:
         stu = st.session_state.last_selected_student
         st.subheader(f"📋 채점 결과 - {stu['name']} ({stu['id']})")
