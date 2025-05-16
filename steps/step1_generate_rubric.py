@@ -4,6 +4,7 @@
 import streamlit as st
 import tempfile
 from utils.pdf_utils import extract_text_from_pdf
+from config.llm_config import get_llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableSequence
 from langchain_core.output_parsers import StrOutputParser
