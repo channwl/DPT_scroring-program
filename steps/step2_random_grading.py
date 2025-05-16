@@ -29,6 +29,10 @@ def process_student_pdfs(pdf_files):
 
 
 def run_step2():
+
+    st.write("🧪 step 값:", st.session_state.get("step"))
+    st.write("🧪 step 타입:", type(st.session_state.get("step")))
+
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
 
     if 'problem_text' in st.session_state and 'problem_filename' in st.session_state:
