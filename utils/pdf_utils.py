@@ -4,20 +4,25 @@ import io
 def extract_text_from_pdf(pdf_data):
     """
     PDF 데이터를 받아 텍스트를 문자열로 추출
-    - pdf_data는 파일 경로(str), bytes, 또는 UploadedFile 객체일 수 있음
+    - pdf_data는 파일 경로(str), bytes, 또는 Streamlit UploadedFile 객체일 수 있음
     """
     try:
+        # 케이스 1: 파일 경로
         if isinstance(pdf_data, str):
-            # 파일 경로일 경우
             with pdfplumber.open(pdf_data) as pdf:
                 return "\n".join([page.extract_text() or "" for page in pdf.pages])
 
+        # 케이스 2: UploadedFile or bytes
+        elif hasattr(pdf_data, "read"):
+            # UploadedFile 객체 or 파일 스트림
+            byte_data = pdf_data.read()
         elif isinstance(pdf_data, bytes):
-            pdf_stream = io.BytesIO(pdf_data)
-
+            byte_data = pdf_data
         else:
-            # UploadedFile 객체 (Streamlit의 st.file_uploader 결과)
-            pdf_stream = io.BytesIO(pdf_data.read())
+            return "[오류] 지원하지 않는 데이터 형식입니다."
+
+        # pdfplumber에 전달할 스트림 생성
+        pdf_stream = io.BytesIO(byte_data)
 
         with pdfplumber.open(pdf_stream) as pdf:
             return "\n".join([page.extract_text() or "" for page in pdf.pages])
