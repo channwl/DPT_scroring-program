@@ -1,5 +1,6 @@
 import streamlit as st
 import random
+import io
 from utils.pdf_utils import extract_text_from_pdf
 from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
@@ -19,12 +20,15 @@ def grade_answer(prompt: str) -> str:
 
 # PDF 처리
 def process_student_pdfs(pdf_files):
-    answers, info = []
+    answers = []
+    info = []
     for file in pdf_files:
         try:
-            file.seek(0)
+            file.seek(0)  # 안전하게 초기화
             file_bytes = file.read()
-            text = extract_text_from_pdf(file_bytes)
+            file_stream = io.BytesIO(file_bytes)
+
+            text = extract_text_from_pdf(file_stream)
             text = clean_text_postprocess(text)
             name, sid = extract_info_from_filename(file.name)
 
@@ -39,7 +43,7 @@ def process_student_pdfs(pdf_files):
     st.session_state.student_answers_data = info
     return answers, info
 
-# STEP 2
+# STEP 2 실행 함수
 def run_step2():
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
 
