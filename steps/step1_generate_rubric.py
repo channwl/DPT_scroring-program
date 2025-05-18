@@ -73,8 +73,8 @@ def run_step1():
         st.session_state.problem_filename = safe_name
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-        tmp_file.write(problem_pdf.read())
-        tmp_path = tmp_file.name
+            tmp_file.write(problem_pdf.read())
+            tmp_path = tmp_file.name
 
         text = extract_text_from_pdf(tmp_path)
         st.session_state.problem_text = text
