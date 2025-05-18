@@ -69,16 +69,17 @@ def run_step1():
     problem_pdf = st.file_uploader("📄 문제 PDF 업로드", type="pdf", key="problem_upload")
 
     if problem_pdf:
-        st.session_state.problem_filename = problem_pdf.name
+        safe_name = sanitize_filename(problem_pdf.name)
+        st.session_state.problem_filename = safe_name
 
-        # 임시파일 저장 → 텍스트 추출
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(problem_pdf.read())
-            tmp_path = tmp_file.name
+        tmp_file.write(problem_pdf.read())
+        tmp_path = tmp_file.name
 
         text = extract_text_from_pdf(tmp_path)
         st.session_state.problem_text = text
-        rubric_key = f"rubric_{problem_pdf.name}"
+        rubric_key = f"rubric_{safe_name}"  # ← 세션 키도 안전하게
+
 
         st.subheader("📃 문제 내용")
         if not text.strip():
