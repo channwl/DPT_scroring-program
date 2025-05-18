@@ -1,12 +1,19 @@
 import streamlit as st
 import random
 import io
+import re
+
 from utils.pdf_utils import extract_text_from_pdf
 from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
+
 from config.llm_config import get_llm
 
-# GPT 직접 호출
+# 🔧 파일명 정규화 함수
+def sanitize_filename(filename):
+    return re.sub(r'[^a-zA-Z0-9_.-]', '_', filename)
+
+# ✅ GPT 직접 호출 함수
 def grade_answer(prompt: str) -> str:
     try:
         llm = get_llm()
@@ -18,7 +25,7 @@ def grade_answer(prompt: str) -> str:
     except Exception as e:
         return f"[오류] GPT 호출 실패: {str(e)}"
 
-# PDF 처리
+# ✅ 학생 PDF 처리 함수
 def process_student_pdfs(pdf_files):
     answers = []
     info = []
@@ -28,9 +35,13 @@ def process_student_pdfs(pdf_files):
             file_bytes = file.read()
             file_stream = io.BytesIO(file_bytes)
 
+            # 텍스트 추출
             text = extract_text_from_pdf(file_stream)
             text = clean_text_postprocess(text)
-            name, sid = extract_info_from_filename(file.name)
+
+            # 🔧 파일명 정규화 후 정보 추출
+            safe_filename = sanitize_filename(file.name)
+            name, sid = extract_info_from_filename(safe_filename)
 
             if len(text.strip()) > 20:
                 answers.append(text)
@@ -43,7 +54,7 @@ def process_student_pdfs(pdf_files):
     st.session_state.student_answers_data = info
     return answers, info
 
-# STEP 2 실행 함수
+# ✅ STEP 2 실행 함수
 def run_step2():
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
 
@@ -70,10 +81,10 @@ def run_step2():
             idx = random.randint(0, len(all_answers) - 1)
             selected_student = info_list[idx]
             answer = all_answers[idx]
+
             if not answer.strip():
                 st.error("❌ 학생 답안이 비어 있어 GPT에 채점을 요청할 수 없습니다.")
                 return
-
 
             prompt = f"""당신은 학생의 서술형 시험 답안을 채점하는 GPT입니다.
 
