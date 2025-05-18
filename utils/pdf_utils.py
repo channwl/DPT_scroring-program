@@ -1,31 +1,26 @@
-# pdf_utils.py
-# 이 파일은 PDF 파일에서 텍스트를 추출하는 유틸 함수들을 포함합니다.
-# pdfplumber를 이용하여 페이지 단위로 텍스트를 모아 문자열로 반환합니다.
-
-import pdfplumber
-import io
-
-# pdf_utils.py
-# 이 파일은 PDF 파일에서 텍스트를 추출하는 유틸 함수들을 포함합니다.
-# pdfplumber를 이용하여 페이지 단위로 텍스트를 모아 문자열로 반환합니다.
-
 import pdfplumber
 import io
 
 def extract_text_from_pdf(pdf_data):
     """
-    PDF 파일(bytes 또는 UploadedFile 객체)을 받아 텍스트를 문자열로 추출
+    PDF 데이터를 받아 텍스트를 문자열로 추출
+    - pdf_data는 파일 경로(str), bytes, 또는 UploadedFile 객체일 수 있음
     """
-    if isinstance(pdf_data, bytes):
-        pdf_stream = io.BytesIO(pdf_data)
-    else:
-        pdf_stream = io.BytesIO(pdf_data.read())
+    try:
+        if isinstance(pdf_data, str):
+            # 파일 경로일 경우
+            with pdfplumber.open(pdf_data) as pdf:
+                return "\n".join([page.extract_text() or "" for page in pdf.pages])
 
-    text = ""
-    with pdfplumber.open(pdf_stream) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + "\n"
+        elif isinstance(pdf_data, bytes):
+            pdf_stream = io.BytesIO(pdf_data)
 
-    return text
+        else:
+            # UploadedFile 객체 (Streamlit의 st.file_uploader 결과)
+            pdf_stream = io.BytesIO(pdf_data.read())
+
+        with pdfplumber.open(pdf_stream) as pdf:
+            return "\n".join([page.extract_text() or "" for page in pdf.pages])
+
+    except Exception as e:
+        return f"[오류] PDF 텍스트 추출 실패: {str(e)}"
