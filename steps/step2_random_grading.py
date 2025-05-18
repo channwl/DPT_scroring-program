@@ -75,15 +75,20 @@ def run_step2():
             else:
                 if st.button("🎯 무작위 채점 실행"):
                     all_answers, info_list = process_student_pdfs(student_pdfs)
-                    if not all_answers:
-                        st.warning("답안을 찾을 수 없습니다.")
+
+                    if not all_answers or not info_list:
+                        st.warning("❌ 업로드된 PDF에서 유효한 텍스트를 추출하지 못했습니다.")
                         return
 
-                    idx = random.randint(0, len(all_answers) - 1)
-                    selected_student = info_list[idx]
-                    answer = all_answers[idx]
+                idx = random.randint(0, len(all_answers) - 1)
+                selected_student = info_list[idx]
+                answer = all_answers[idx]
 
-                    prompt = f"""다음은 채점 기준입니다:
+                if not rubric or not answer or len(answer.strip()) < 30:
+                    st.error("❌ rubric 또는 answer가 비어 있거나 너무 짧습니다.")
+                    return
+
+                prompt = f"""다음은 채점 기준입니다:
 {rubric}
 
 그리고 아래는 학생 답안입니다:
@@ -97,29 +102,26 @@ def run_step2():
 5. 표 아래에 반드시 "**배점 총합: XX점**"을 작성하세요.
 """
 
-                    if not rubric or not answer or len(answer.strip()) < 30:
-                        st.error("❌ rubric 또는 answer가 비어 있거나 너무 짧습니다.")
-                        return
+    if len(prompt) > 12000:
+        st.error(f"❌ prompt가 너무 깁니다. 현재 길이: {len(prompt)}자")
+        return
 
-                    if len(prompt) > 12000:
-                        st.error(f"❌ prompt가 너무 깁니다. 현재 길이: {len(prompt)}자")
-                        return
+    try:
+        with st.spinner("GPT가 채점 중입니다..."):
+            result = grade_answer(prompt)
 
-                    try:
-                        with st.spinner("GPT가 채점 중입니다..."):
-                            result = grade_answer(prompt)
+            if result.startswith("[오류]") or "Error" in result:
+                st.error(f"❌ GPT 응답 오류: {result}")
+                return
 
-                            if result.startswith("[오류]"):
-                                st.error(result)
-                                return
+            st.session_state.last_grading_result = result
+            st.session_state.last_selected_student = selected_student
+            st.success("✅ 채점 완료")
 
-                            st.session_state.last_grading_result = result
-                            st.session_state.last_selected_student = selected_student
-                            st.success("✅ 채점 완료")
+    except Exception as e:
+        st.error("❌ GPT 채점 중 예외 발생")
+        st.exception(e)
 
-                    except Exception as e:
-                        st.error("❌ GPT 채점 중 예외 발생")
-                        st.exception(e)
     else:
         st.warning("먼저 STEP 1에서 문제를 업로드해주세요.")
         if st.button("STEP 1로 이동"):
