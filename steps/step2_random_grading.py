@@ -4,21 +4,6 @@ from utils.pdf_utils import extract_text_from_pdf
 from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
 from chains.grading_chain import grade_answer
-from config.llm_config import get_llm
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableSequence
-from langchain_core.output_parsers import StrOutputParser
-
-# LangChain 기반 GPT 채점 기준 생성 체인 정의
-llm = get_llm()
-
-rubric_prompt_template = ChatPromptTemplate.from_messages([
-    ("system", "당신은 대학 시험을 채점하는 전문가 GPT입니다."),
-    ("user", "{input}")
-])
-
-rubric_chain = rubric_prompt_template | llm | StrOutputParser()
-
 
 def process_student_pdfs(pdf_files):
     answers, info = [], []
@@ -28,15 +13,12 @@ def process_student_pdfs(pdf_files):
             file.seek(0)
             file_bytes = file.read()
 
-            # 텍스트 추출
             text = extract_text_from_pdf(file_bytes)
             st.text(f"📄 PDF 텍스트 길이: {len(text)}")
 
-            # 클린업
             text = clean_text_postprocess(text)
             st.text(f"🧹 정리된 텍스트 길이: {len(text)}")
 
-            # 이름 및 학번 추출
             name, sid = extract_info_from_filename(file.name)
             st.text(f"👤 파일명에서 추출된 이름: {name}, 학번: {sid}")
 
@@ -48,7 +30,7 @@ def process_student_pdfs(pdf_files):
 
         except Exception as e:
             st.error(f"❌ {file.name} 처리 중 오류 발생: {str(e)}")
-            return [], []  # 오류 발생 시 즉시 중단
+            return [], []
 
     st.session_state.student_answers_data = info
     return answers, info
@@ -102,6 +84,10 @@ def run_step2():
 5. 표 아래에 반드시 "**배점 총합: XX점**"을 작성하세요.
 """
 
+                    st.write("📏 Prompt 길이 (문자수):", len(prompt))
+                    with st.expander("📄 GPT 프롬프트 확인"):
+                        st.code(prompt)
+
                     if len(prompt) > 12000:
                         st.error(f"❌ prompt가 너무 깁니다. 현재 길이: {len(prompt)}자")
                         return
@@ -110,7 +96,7 @@ def run_step2():
                         with st.spinner("GPT가 채점 중입니다..."):
                             result = grade_answer(prompt)
 
-                            if result.startswith("[오류]") or "Error" in result:
+                            if not isinstance(result, str) or result.startswith("[오류]") or "Error" in result:
                                 st.error(f"❌ GPT 응답 오류: {result}")
                                 return
 
@@ -121,7 +107,6 @@ def run_step2():
                     except Exception as e:
                         st.error("❌ GPT 채점 중 예외 발생")
                         st.exception(e)
-
     else:
         st.warning("먼저 STEP 1에서 문제를 업로드해주세요.")
         if st.button("STEP 1로 이동"):
