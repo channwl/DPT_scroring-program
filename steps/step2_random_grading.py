@@ -70,6 +70,10 @@ def run_step2():
             idx = random.randint(0, len(all_answers) - 1)
             selected_student = info_list[idx]
             answer = all_answers[idx]
+            if not answer.strip():
+                st.error("❌ 학생 답안이 비어 있어 GPT에 채점을 요청할 수 없습니다.")
+                return
+
 
             prompt = f"""당신은 학생의 서술형 시험 답안을 채점하는 GPT입니다.
 
