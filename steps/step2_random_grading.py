@@ -39,7 +39,7 @@ def process_student_pdfs(pdf_files):
             text = extract_text_from_pdf(file_stream)
             text = clean_text_postprocess(text)
 
-            # 🔧 파일명 정규화 후 정보 추출
+            # 🔧 파일명 정규화
             safe_filename = sanitize_filename(file.name)
             name, sid = extract_info_from_filename(safe_filename)
 
@@ -47,9 +47,9 @@ def process_student_pdfs(pdf_files):
                 answers.append(text)
                 info.append({'name': name, 'id': sid, 'text': text})
             else:
-                st.warning(f"{file.name}에서 충분한 텍스트를 추출하지 못했습니다.")
+                st.warning(f"{safe_filename}에서 충분한 텍스트를 추출하지 못했습니다.")  # ✅ 안전한 출력
         except Exception as e:
-            st.error(f"{file.name} 처리 중 오류 발생: {str(e)}")
+            st.error(f"{safe_filename} 처리 중 오류 발생: {str(e)}")  # ✅ 안전한 출력
             return [], []
     st.session_state.student_answers_data = info
     return answers, info
