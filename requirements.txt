@@ -4,7 +4,7 @@ langchain-community>=0.0.21
 openai
 tiktoken
 streamlit>=1.33.0
-pdfplumber
+pyMuPDF
 pandas
 regex
 python-dotenv
