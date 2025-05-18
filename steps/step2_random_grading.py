@@ -1,6 +1,3 @@
-# step2_random_grading.py
-# 이 파일은 STEP 2: 학생 답안 PDF 업로드 및 무작위 채점을 실행하는 Streamlit UI 로직입니다.
-
 import streamlit as st
 import random
 from utils.pdf_utils import extract_text_from_pdf
@@ -21,6 +18,8 @@ rubric_prompt_template = ChatPromptTemplate.from_messages([
 ])
 
 rubric_chain = rubric_prompt_template | llm | StrOutputParser()
+
+
 def process_student_pdfs(pdf_files):
     answers, info = [], []
 
@@ -55,7 +54,6 @@ def process_student_pdfs(pdf_files):
     return answers, info
 
 
-
 def run_step2():
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
 
@@ -76,16 +74,16 @@ def run_step2():
                 st.warning("채점 기준이 없습니다. STEP 1에서 먼저 생성해주세요.")
             else:
                 if st.button("🎯 무작위 채점 실행"):
-    all_answers, info_list = process_student_pdfs(student_pdfs)
-    if not all_answers:
-        st.warning("답안을 찾을 수 없습니다.")
-        return
+                    all_answers, info_list = process_student_pdfs(student_pdfs)
+                    if not all_answers:
+                        st.warning("답안을 찾을 수 없습니다.")
+                        return
 
-    idx = random.randint(0, len(all_answers) - 1)
-    selected_student = info_list[idx]
-    answer = all_answers[idx]
+                    idx = random.randint(0, len(all_answers) - 1)
+                    selected_student = info_list[idx]
+                    answer = all_answers[idx]
 
-    prompt = f"""다음은 채점 기준입니다:
+                    prompt = f"""다음은 채점 기준입니다:
 {rubric}
 
 그리고 아래는 학생 답안입니다:
@@ -93,39 +91,35 @@ def run_step2():
 
 📌 작성 규칙 (아래 형식을 반드시 그대로 지킬 것!)
 1. **반드시 마크다운 표**로 작성해주세요. 정확히 아래 구조를 따라야 합니다.
-2. **헤더는 `| 채점 항목 | 배점 | 세부 기준 |` 이고**, 그 아래 구분선은 `|---|---|---|`로 시작해야 합니다.
+2. **헤더는 | 채점 항목 | 배점 | 세부 기준 | 이고**, 그 아래 구분선은 |---|---|---|로 시작해야 합니다.
 3. **각 행은 반드시 |로 시작하고 |로 끝나야 하며**, 총 3개의 열을 포함해야 합니다.
 4. 각 항목의 세부 기준은 **구체적으로**, **한글로만** 작성해주세요. 영어는 절대 사용하지 마세요.
 5. 표 아래에 반드시 "**배점 총합: XX점**"을 작성하세요.
 """
 
-    if not rubric or not answer or len(answer.strip()) < 30:
-        st.error("❌ rubric 또는 answer가 비어 있거나 너무 짧습니다.")
-        return
+                    if not rubric or not answer or len(answer.strip()) < 30:
+                        st.error("❌ rubric 또는 answer가 비어 있거나 너무 짧습니다.")
+                        return
 
-    if len(prompt) > 12000:
-        st.error(f"❌ prompt가 너무 깁니다. 현재 길이: {len(prompt)}자")
-        return
+                    if len(prompt) > 12000:
+                        st.error(f"❌ prompt가 너무 깁니다. 현재 길이: {len(prompt)}자")
+                        return
 
-    # ✅ GPT 채점 시도 → 오류 메시지 출력까지 UI에 노출
-    try:
-        with st.spinner("GPT가 채점 중입니다..."):
-            result = grade_answer(prompt)
+                    try:
+                        with st.spinner("GPT가 채점 중입니다..."):
+                            result = grade_answer(prompt)
 
-            if result.startswith("[오류]"):
-                st.error(result)
-                return
+                            if result.startswith("[오류]"):
+                                st.error(result)
+                                return
 
-            st.session_state.last_grading_result = result
-            st.session_state.last_selected_student = selected_student
-            st.success("✅ 채점 완료")
+                            st.session_state.last_grading_result = result
+                            st.session_state.last_selected_student = selected_student
+                            st.success("✅ 채점 완료")
 
-    except Exception as e:
-        st.error("❌ GPT 채점 중 예외 발생")
-        st.exception(e)
-
-
-
+                    except Exception as e:
+                        st.error("❌ GPT 채점 중 예외 발생")
+                        st.exception(e)
     else:
         st.warning("먼저 STEP 1에서 문제를 업로드해주세요.")
         if st.button("STEP 1로 이동"):
