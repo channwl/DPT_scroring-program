@@ -22,8 +22,6 @@ def save_uploaded_file(uploaded_file):
         tmp_file.write(uploaded_file.read())
         return tmp_file.name, unique_name  # 경로와 강제 파일명
 
-uploaded_path, safe_name = save_uploaded_file(problem_pdf)
-
 
 # ✅ GPT 직접 호출 함수
 def grade_answer(prompt: str) -> str:
@@ -45,6 +43,7 @@ def process_student_pdfs(pdf_files):
 
     for file in pdf_files:
         try:
+            uploaded_path, safe_name = save_uploaded_file(problem_pdf)
             file.seek(0)
             file_bytes = file.read()
 
@@ -76,7 +75,6 @@ def process_student_pdfs(pdf_files):
 # ✅ STEP 2 실행 함수
 def run_step2():
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
-
     if st.session_state.get("problem_text") and st.session_state.get("problem_filename"):
         rubric_key = f"rubric_{st.session_state.problem_filename}"
         rubric = st.session_state.generated_rubrics.get(rubric_key)
