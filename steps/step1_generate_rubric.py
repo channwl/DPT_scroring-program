@@ -1,8 +1,6 @@
-# step1_generate_rubric.py
-# 이 파일은 STEP 1: 문제 업로드 및 채점 기준 생성을 위한 Streamlit UI 및 실행 로직을 포함합니다.
-
 import streamlit as st
 import tempfile
+import os
 from utils.pdf_utils import extract_text_from_pdf
 from config.llm_config import get_llm
 from langchain_core.prompts import ChatPromptTemplate
@@ -16,10 +14,18 @@ rubric_prompt_template = ChatPromptTemplate.from_messages([
     ("system", "당신은 대학 시험을 채점하는 전문가 GPT입니다."),
     ("user", "{input}")
 ])
-
 rubric_chain = rubric_prompt_template | llm | StrOutputParser()
 
-# 채점 기준 생성 함수
+
+# 🔧 파일명 안전화 함수 (예: 한글 제거, 특수문자 제거 등)
+def sanitize_filename(filename: str) -> str:
+    import re
+    name = os.path.splitext(os.path.basename(filename))[0]
+    name = re.sub(r'[^\w\-_.]', '_', name)  # 한글, 특수문자 → 언더스코어
+    return name
+
+
+# ✅ 채점 기준 생성
 def generate_rubric(problem_text: str) -> str:
     prompt = f"""
 당신은 대학 시험을 채점하는 전문가 GPT입니다.
@@ -52,34 +58,36 @@ def generate_rubric(problem_text: str) -> str:
 6. 문제 수를 줄이거나 임의로 문제를 묶으면 안 됩니다.
 
 이제 채점 기준을 생성하세요.
-    """
-
+"""
     try:
         result = rubric_chain.invoke({"input": prompt})
-        return result  # 그냥 문자열 반환
+        return result
     except Exception as e:
         st.error("❌ 채점 기준 생성 중 오류가 발생했습니다.")
         st.exception(e)
         return f"[오류] {str(e)}"
 
-# STEP 1 실행 UI
+
+# ✅ STEP 1 실행 함수
 def run_step1():
     st.subheader("📄 STEP 1: 문제 업로드 및 채점 기준 생성")
 
     problem_pdf = st.file_uploader("📄 문제 PDF 업로드", type="pdf", key="problem_upload")
 
     if problem_pdf:
+        # 🔐 안전한 파일명 생성
         safe_name = sanitize_filename(problem_pdf.name)
         st.session_state.problem_filename = safe_name
 
+        # ✅ 임시 파일에 저장하여 한글 경로 우회
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
             tmp_file.write(problem_pdf.read())
             tmp_path = tmp_file.name
 
+        # ✅ 문제 텍스트 추출
         text = extract_text_from_pdf(tmp_path)
         st.session_state.problem_text = text
-        rubric_key = f"rubric_{safe_name}"  # ← 세션 키도 안전하게
-
+        rubric_key = f"rubric_{safe_name}"
 
         st.subheader("📃 문제 내용")
         if not text.strip():
