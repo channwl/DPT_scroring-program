@@ -6,12 +6,7 @@ import re
 from utils.pdf_utils import extract_text_from_pdf
 from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
-
 from config.llm_config import get_llm
-
-# 🔧 파일명 정규화 함수
-def sanitize_filename(filename):
-    return re.sub(r'[^a-zA-Z0-9_.-]', '_', filename)
 
 # ✅ GPT 직접 호출 함수
 def grade_answer(prompt: str) -> str:
@@ -29,28 +24,29 @@ def grade_answer(prompt: str) -> str:
 def process_student_pdfs(pdf_files):
     answers = []
     info = []
+
     for file in pdf_files:
         try:
-            file.seek(0)  # 안전하게 초기화
+            file.seek(0)
             file_bytes = file.read()
             file_stream = io.BytesIO(file_bytes)
 
-            # 텍스트 추출
+            # ✅ 원본 파일명 기준으로 이름/학번 추출
+            name, sid = extract_info_from_filename(file.name)
+
+            # 텍스트 추출 및 후처리
             text = extract_text_from_pdf(file_stream)
             text = clean_text_postprocess(text)
-
-            # 🔧 파일명 정규화
-            safe_filename = sanitize_filename(file.name)
-            name, sid = extract_info_from_filename(safe_filename)
 
             if len(text.strip()) > 20:
                 answers.append(text)
                 info.append({'name': name, 'id': sid, 'text': text})
             else:
-                st.warning(f"{safe_filename}에서 충분한 텍스트를 추출하지 못했습니다.")  # ✅ 안전한 출력
+                st.warning(f"{file.name}에서 충분한 텍스트를 추출하지 못했습니다.")
         except Exception as e:
-            st.error(f"{safe_filename} 처리 중 오류 발생: {str(e)}")  # ✅ 안전한 출력
+            st.error(f"{file.name} 처리 중 오류 발생: {str(e)}")
             return [], []
+
     st.session_state.student_answers_data = info
     return answers, info
 
@@ -58,7 +54,7 @@ def process_student_pdfs(pdf_files):
 def run_step2():
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
 
-    if st.session_state.problem_text and st.session_state.problem_filename:
+    if st.session_state.get("problem_text") and st.session_state.get("problem_filename"):
         rubric_key = f"rubric_{st.session_state.problem_filename}"
         rubric = st.session_state.generated_rubrics.get(rubric_key)
 
