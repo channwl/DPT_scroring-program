@@ -2,11 +2,13 @@ import streamlit as st
 import random
 import io
 import re
+import tempfile
 
 from utils.pdf_utils import extract_text_from_pdf
 from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
 from config.llm_config import get_llm
+
 
 # ✅ GPT 직접 호출 함수
 def grade_answer(prompt: str) -> str:
@@ -20,7 +22,8 @@ def grade_answer(prompt: str) -> str:
     except Exception as e:
         return f"[오류] GPT 호출 실패: {str(e)}"
 
-# ✅ 학생 PDF 처리 함수
+
+# ✅ 학생 PDF 처리 함수 (한글 파일명 포함 처리)
 def process_student_pdfs(pdf_files):
     answers = []
     info = []
@@ -29,13 +32,17 @@ def process_student_pdfs(pdf_files):
         try:
             file.seek(0)
             file_bytes = file.read()
-            file_stream = io.BytesIO(file_bytes)
 
-            # ✅ 원본 파일명 기준으로 이름/학번 추출
+            # 이름/학번 추출
             name, sid = extract_info_from_filename(file.name)
 
-            # 텍스트 추출 및 후처리
-            text = extract_text_from_pdf(file_stream)
+            # ✅ 한글 파일명을 tempfile에 저장하여 우회
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                tmp.write(file_bytes)
+                tmp_path = tmp.name
+
+            # 텍스트 추출 (내부에서 한글 경로 문제 방지됨)
+            text = extract_text_from_pdf(tmp_path)
             text = clean_text_postprocess(text)
 
             if len(text.strip()) > 20:
@@ -49,6 +56,7 @@ def process_student_pdfs(pdf_files):
 
     st.session_state.student_answers_data = info
     return answers, info
+
 
 # ✅ STEP 2 실행 함수
 def run_step2():
