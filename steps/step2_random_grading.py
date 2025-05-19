@@ -9,6 +9,21 @@ from utils.text_cleaning import clean_text_postprocess
 from utils.file_info import extract_info_from_filename
 from config.llm_config import get_llm
 
+import tempfile
+import uuid
+
+def save_uploaded_file(uploaded_file):
+    """
+    업로드된 파일을 안전한 임시경로에 저장하고 경로 반환
+    """
+    # 한글 이름 무시하고 UUID로 대체
+    unique_name = f"{uuid.uuid4().hex}.pdf"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf", prefix="upload_", mode='wb') as tmp_file:
+        tmp_file.write(uploaded_file.read())
+        return tmp_file.name, unique_name  # 경로와 강제 파일명
+
+uploaded_path, safe_name = save_uploaded_file(problem_pdf)
+
 
 # ✅ GPT 직접 호출 함수
 def grade_answer(prompt: str) -> str:
