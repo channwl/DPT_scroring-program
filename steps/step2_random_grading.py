@@ -43,33 +43,28 @@ def process_student_pdfs(pdf_files):
 
     for file in pdf_files:
         try:
-            uploaded_path, safe_name = save_uploaded_file(problem_pdf)
-            file.seek(0)
-            file_bytes = file.read()
+            # 🔧 한글 파일명을 안전하게 저장
+            uploaded_path, safe_name = save_uploaded_file(file)
 
-            # 이름/학번 추출
-            name, sid = extract_info_from_filename(file.name)
+            # 이름/학번 추출 (원래 file.name 대신 safe_name 사용)
+            name, sid = extract_info_from_filename(safe_name)
 
-            # ✅ 한글 파일명을 tempfile에 저장하여 우회
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(file_bytes)
-                tmp_path = tmp.name
-
-            # 텍스트 추출 (내부에서 한글 경로 문제 방지됨)
-            text = extract_text_from_pdf(tmp_path)
+            # 텍스트 추출 (한글 경로 문제 없음)
+            text = extract_text_from_pdf(uploaded_path)
             text = clean_text_postprocess(text)
 
             if len(text.strip()) > 20:
                 answers.append(text)
                 info.append({'name': name, 'id': sid, 'text': text})
             else:
-                st.warning(f"{file.name}에서 충분한 텍스트를 추출하지 못했습니다.")
+                st.warning(f"{safe_name}에서 충분한 텍스트를 추출하지 못했습니다.")
         except Exception as e:
             st.error(f"{file.name} 처리 중 오류 발생: {str(e)}")
             return [], []
 
     st.session_state.student_answers_data = info
     return answers, info
+
 
 
 # ✅ STEP 2 실행 함수
