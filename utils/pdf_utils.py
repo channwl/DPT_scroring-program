@@ -1,27 +1,23 @@
-import fitz  # PyMuPDF
-import io
+import os
+import re
 
-def extract_text_from_pdf(pdf_data):
+def extract_info_from_filename(filename):
     """
-    PDF 데이터를 받아 텍스트를 문자열로 추출 (PyMuPDF 사용)
-    - pdf_data는 UploadedFile, bytes, 또는 파일 경로(str) 일 수 있음
+    파일명에서 이름(한글)과 학번(숫자)을 추출합니다.
+    예: "DIGB225_Assignment_2_202312345_김채점.pdf" → ("김채점", "202312345")
     """
-    try:
-        if isinstance(pdf_data, str):
-            # 파일 경로
-            doc = fitz.open(pdf_data)
-        elif isinstance(pdf_data, bytes):
-            doc = fitz.open(stream=pdf_data, filetype="pdf")
-        elif hasattr(pdf_data, "read"):
-            pdf_bytes = pdf_data.read()
-            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        else:
-            raise ValueError("지원하지 않는 파일 형식입니다.")
+    base_filename = os.path.splitext(os.path.basename(filename))[0]
 
-        text = ""
-        for page in doc:
-            text += page.get_text()
-        return text.strip()
+    # 학번 추출 (6~10자리 숫자)
+    id_match = re.search(r'\d{6,10}', base_filename)
+    student_id = id_match.group() if id_match else "UnknownID"
 
-    except Exception as e:
-        return f"[오류] PyMuPDF 텍스트 추출 실패: {str(e)}"
+    # 이름 추출 (한글 2~5자)
+    name_candidates = re.findall(r'[가-힣]{2,5}', base_filename)
+    exclude_words = {"기말", "중간", "과제", "시험", "수업", "레포트", "제출", "답안"}
+
+    for name in name_candidates:
+        if name not in exclude_words:
+            return name, student_id
+
+    return "UnknownName", student_id
