@@ -5,6 +5,10 @@ openai
 tiktoken
 streamlit==1.44.0
 pyMuPDF
+pdfplumber
+pdf2image>=1.17.0
+pillow>=10.0.0       # pdf2image가 의존
+pytesseract>=0.3.10  # 텍스트 OCR
 pandas
 regex
 python-dotenv
