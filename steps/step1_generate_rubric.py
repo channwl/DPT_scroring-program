@@ -10,6 +10,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableSequence
 from langchain_core.output_parsers import StrOutputParser
 
+#grading 용 키 설정
+os.environ["OPENAI_API_KEY"] = st.secrets["openai"]["API_KEY"]
+
 # LangChain 기반 GPT 채점 기준 생성 체인 정의
 llm = get_llm()
 rubric_prompt_template = ChatPromptTemplate.from_messages([
