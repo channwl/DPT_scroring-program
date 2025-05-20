@@ -1,39 +1,44 @@
-import fitz  # PyMuPDF
+# utils/pdf_utils.py
 import io
-import urllib.parse
+import fitz                       # PyMuPDF
+import pdfplumber
+from pdf2image import convert_from_bytes
+from PIL import Image
+import pytesseract
+from typing import Union, List
 
-def extract_text_from_pdf(pdf_data):
+def _ocr_img(img: Image.Image) -> str:
+    """PIL 이미지 한 장을 한–영 OCR."""
+    return pytesseract.image_to_string(img, lang="kor+eng")
+
+def extract_text_from_pdf(pdf_data: Union[str, bytes, "UploadedFile"]) -> str:
     """
-    PDF 데이터를 받아 텍스트를 문자열로 추출 (PyMuPDF 사용)
-    - pdf_data는 UploadedFile, bytes, 또는 파일 경로(str) 일 수 있음
+    1) PyMuPDF / pdfplumber 로 텍스트 추출  
+    2) 각 페이지 글자 수 < 20 → OCR 로 보강
     """
-    try:
-        if isinstance(pdf_data, str):
-            # URL 인코딩된 한글 파일명을 디코딩
-            decoded_path = urllib.parse.unquote(pdf_data)
-            doc = fitz.open(decoded_path)
-        elif isinstance(pdf_data, bytes):
-            doc = fitz.open(stream=pdf_data, filetype="pdf")
-        elif hasattr(pdf_data, "read"):
-            try:
-                # 파일 객체에서 바이트로 읽기
-                pdf_bytes = pdf_data.read()
-                doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-            except Exception as file_error:
-                # 파일 객체 읽기 실패 시 이름 사용해 다시 시도
-                if hasattr(pdf_data, "name"):
-                    pdf_data.seek(0)  # 파일 포인터 초기화
-                    pdf_bytes = pdf_data.read()
-                    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-                else:
-                    raise file_error
-        else:
-            raise ValueError("지원하지 않는 파일 형식입니다.")
-        
-        text = ""
-        for page in doc:
-            text += page.get_text()
-        doc.close()  # 파일 닫기 (메모리 누수 방지)
-        return text.strip()
-    except Exception as e:
-        return f"[오류] PyMuPDF 텍스트 추출 실패: {str(e)}"
+    # ----- 입력 → 바이트 -----
+    if isinstance(pdf_data, str):          # 파일 경로
+        with open(pdf_data, "rb") as f:
+            pdf_bytes = f.read()
+    elif isinstance(pdf_data, bytes):
+        pdf_bytes = pdf_data
+    else:                                  # UploadedFile
+        pdf_bytes = pdf_data.read()
+
+    full_text: List[str] = []
+
+    # ----- 1차: pdfplumber -----
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        for idx, page in enumerate(pdf.pages):
+            page_text = page.extract_text() or ""
+            if len(page_text.strip()) < 20:          # 글자 거의 없음 → OCR
+                img = convert_from_bytes(
+                    pdf_bytes, first_page=idx + 1, last_page=idx + 1,
+                    fmt="png", thread_count=1
+                )[0]
+                ocr_text = _ocr_img(img)
+                full_text.append(ocr_text)
+            else:
+                full_text.append(page_text)
+
+    return "\n".join(full_text).strip()
