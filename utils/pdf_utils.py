@@ -18,13 +18,11 @@ import pytesseract
 MIN_CHARS   = 40          # 페이지당 텍스트가 이보다 적으면 OCR
 OCR_LANG    = "kor+eng"   # Tesseract 언어 (한/영 혼합)
 DPI         = 300         # pdf2image 해상도
-WHITELIST   = (
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-    "0123456789_-+=*/(){}[]<>.:;,'\"\\|%$&#@!?`~^"
-)  # 코드·수식 기호 중심
-OCR_CONFIG  = (
-    f"--oem 3 --psm 6 -c preserve_interword_spaces=1 "
-    f"-c tessedit_char_whitelist={WHITELIST}"
+OCR_CONFIG = (
+    '--oem 3 --psm 6 -c preserve_interword_spaces=1 '
+    '-c tessedit_char_whitelist='
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    '_-+=*/(){}[]<>.:;,\'|%$&#@!?`~^'
 )
 
 # ------------------------------------------------------------------
