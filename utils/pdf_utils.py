@@ -22,7 +22,7 @@ OCR_CONFIG = (
     '--oem 3 --psm 6 -c preserve_interword_spaces=1 '
     '-c tessedit_char_whitelist='
     'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-    '_-+=*/(){}[]<>.:;,\'|%$&#@!?`~^'
+    '_-+=*/(){}[]<>.:;.,|%$&#@!?`~^'
 )
 
 # ------------------------------------------------------------------
