@@ -12,4 +12,5 @@ pytesseract>=0.3.10  # 텍스트 OCR
 pandas
 regex
 python-dotenv
+google-cloud-aiplatform
 
