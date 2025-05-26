@@ -57,8 +57,7 @@ def grade_answer(prompt: str) -> str:
 
 # ✅ 학생 PDF 처리 함수 (한글 파일명 포함 처리)
 def process_student_pdfs(pdf_files):
-    answers = []
-    info = []
+    answers, info = [], []
 
     for file in pdf_files:
         try:
@@ -90,8 +89,9 @@ def process_student_pdfs(pdf_files):
 
     if not answers:
         return [], []
-        
-    st.session_state.student_answers_data = info
+
+    if save_session:  
+        st.session_state.student_answers_data = info
     return answers, info
 
 def run_step2():
@@ -108,17 +108,22 @@ def run_step2():
 
         # 학생 PDF 업로드 UI
         student_pdfs = st.file_uploader(
-            "📥 채점 기준 테스트 파일 업로드",
-            type="pdf",
-            accept_multiple_files=True,
-            key="student_pdfs_upload"
+        "📥 채점 기준 테스트 파일 업로드",
+        type="pdf",
+        accept_multiple_files=True,
+        key="student_pdfs_upload"
         )
+        
+        if student_pdfs:
+            # 전체 리스트 세션에 저장
+            st.session_state.all_student_pdfs = student_pdfs
 
-        # '임시 채점' 버튼을 누르면 첫 번째 PDF만 채점
-        if student_pdfs and st.button("📌 무작위 채점"):
-            #임시 채점에서는 첫번째 PDF만 처리하여 속도 개선
-            first_pdf = student_pdfs[0]
-            answers, info = process_student_pdfs([first_pdf])
+        # 2) '무작위 채점' 버튼을 누르면 첫 번째 PDF만 처리
+        if st.session_state.get("all_student_pdfs") and st.button("📌 무작위 채점"):
+            pdfs_to_grade = st.session_state.all_student_pdfs
+            first_pdf = pdfs_to_grade[0]
+            # save_session=False 로 전체 세션 데이터 덮어쓰지 않기
+            answers, info = process_student_pdfs([first_pdf], save_session=False)
             if not answers:
                 st.warning("처리할 학생 답안이 없습니다.")
                 return
