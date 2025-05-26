@@ -6,6 +6,7 @@ from chains.grading_chain import grade_answer
 from utils.score_utils import extract_total_score, extract_evidence_sentences, extract_summary_feedback
 from utils.text_cleaning import apply_indentation
 import re
+from steps.step2_random_grading import process_student_pdfs
 
 def extract_total_score(text: str) -> float:
     matches = re.findall(r"총점[:：]?\s*(\d+(?:\.\d+)?)", text)
