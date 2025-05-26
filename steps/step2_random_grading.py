@@ -56,7 +56,7 @@ def grade_answer(prompt: str) -> str:
 
 
 # ✅ 학생 PDF 처리 함수 (한글 파일명 포함 처리)
-def process_student_pdfs(pdf_files):
+def process_student_pdfs(pdf_files, save_session:bool = True):
     answers, info = [], []
 
     for file in pdf_files:
