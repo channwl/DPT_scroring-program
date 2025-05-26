@@ -98,8 +98,8 @@ def process_student_pdfs(pdf_files):
 
 # ✅ STEP 2 실행 함수
 def run_step2():
-    st.subheader("📄 STEP 2: 학생 답안 업로드 및 무작위 채점")
-    
+    st.subheader("📄 STEP 2: 학생 답안 업로드 및 첫 번째 답안 채점")
+
     if st.session_state.get("problem_text") and st.session_state.get("problem_filename"):
         rubric_key = f"rubric_{st.session_state.problem_filename}"
         rubric = st.session_state.generated_rubrics.get(rubric_key)
@@ -108,29 +108,22 @@ def run_step2():
             st.markdown("#### 📊 채점 기준")
             st.markdown(rubric)
 
-        student_pdfs = st.file_uploader("📥 학생 답안 PDF 업로드 (여러 개)", 
+        student_pdfs = st.file_uploader("📥 학생 답안 PDF 업로드 (여러 개 가능)", 
                                         type="pdf", 
                                         accept_multiple_files=True,
                                         key="student_pdfs_upload")
 
-        if student_pdfs and st.button("🎯 무작위 채점 실행"):
-            # 세션 변수 초기화
-            for key in ["last_grading_result", "last_selected_student", "student_answers_data"]:
-                st.session_state.pop(key, None)
+        if student_pdfs and st.button("무작위 답안 채점"):
+            selected_file = student_pdfs[0]  # 첫 번째 파일만 채점
+            safe_name = sanitize_filename(selected_file.name)
+            name, sid = extract_info_from_filename(selected_file.name)
 
             with st.spinner("학생 답안을 처리 중입니다..."):
-                all_answers, info_list = process_student_pdfs(student_pdfs)
-                
-            if not all_answers:
-                st.warning("유효한 답안을 찾을 수 없습니다.")
-                return
+                text = extract_text_from_pdf(selected_file.read())
+                text = clean_text_postprocess(text)
 
-            idx = random.randint(0, len(all_answers) - 1)
-            selected_student = info_list[idx]
-            answer = all_answers[idx]
-
-            if not answer.strip():
-                st.error("❌ 학생 답안이 비어 있어 GPT에 채점을 요청할 수 없습니다.")
+            if not text.strip():
+                st.warning("⚠️ 텍스트를 추출하지 못했습니다.")
                 return
 
             prompt = f"""당신은 대학 시험을 채점하는 GPT 채점자입니다.
