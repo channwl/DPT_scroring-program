@@ -115,9 +115,10 @@ def run_step2():
         )
 
         # '임시 채점' 버튼을 누르면 첫 번째 PDF만 채점
-        if student_pdfs and st.button("임시 채점"):
-            #모든 PDF를 처리해서, anser,info에 저장
-            answers, info = process_student_pdfs(student_pdfs)
+        if student_pdfs and st.button("📌 무작위 채점"):
+            #임시 채점에서는 첫번째 PDF만 처리하여 속도 개선
+            first_pdf = student_pdfs[0]
+            answers, info = process_student_pdfs([first_pdf])
             if not answers:
                 st.warning("처리할 학생 답안이 없습니다.")
                 return
