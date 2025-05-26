@@ -114,20 +114,18 @@ def run_step2():
                                         key="student_pdfs_upload")
 
         if student_pdfs and st.button("무작위 답안 채점"):
-            #전체 PDF 먼저 처리 (중요!)
-            _, student_info = process_student_pdfs(student_pdfs)
-            st.session_state.student_answers_data = student_info  # 전체 학생 정보 저장
+            selected_file = student_pdfs[0]  # 첫 번째 파일만 채점
+            safe_name = sanitize_filename(selected_file.name)
+            name, sid = extract_info_from_filename(selected_file.name)
 
-            # 무작위 선택
-            selected_student = random.choice(student_info)
-            name = selected_student["name"]
-            sid = selected_student["id"]
-            text = selected_student["text"]
-            safe_name = selected_student["filename"]
+            with st.spinner("학생 답안을 처리 중입니다..."):
+                text = extract_text_from_pdf(selected_file.read())
+                text = clean_text_postprocess(text)
 
             if not text.strip():
                 st.warning("⚠️ 텍스트를 추출하지 못했습니다.")
                 return
+
             prompt = f"""당신은 대학 시험을 채점하는 GPT 채점자입니다.
 
 당신의 역할은, 사람이 작성한 "채점 기준"에 **엄격하게 따라** 학생의 답안을 채점하는 것입니다.  
@@ -173,6 +171,12 @@ def run_step2():
             st.session_state.last_grading_result = result
             st.session_state.last_selected_student = {"name": name, "id": sid}
             st.success("✅ 채점 완료")
+            st.session_state.student_answers_data = [{
+            "name": name,
+            "id": sid,
+            "text": text,
+            "filename": safe_name
+            }]
 
     else:
         st.warning("STEP 1에서 문제를 먼저 업로드해야 합니다.")
