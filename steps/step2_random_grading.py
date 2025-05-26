@@ -114,13 +114,19 @@ def run_step2():
                                         key="student_pdfs_upload")
 
         if student_pdfs and st.button("임시 채점"):
-            selected_file = student_pdfs[0]  # 첫 번째 파일만 채점
-            safe_name = sanitize_filename(selected_file.name)
-            name, sid = extract_info_from_filename(selected_file.name)
+            # 전체 학생 파일 처리
+            answers, info = process_student_pdfs(student_pdfs)
+            st.session_state.student_answers_data = info  # ✅ 전체 학생 데이터 저장
 
-            with st.spinner("학생 답안을 처리 중입니다..."):
-                text = extract_text_from_pdf(selected_file.read())
-                text = clean_text_postprocess(text)
+            if not info:
+                st.warning("⚠️ 유효한 학생 답안이 없습니다.")
+                return
+
+            # 첫 번째 학생을 샘플로 채점
+            sample_student = info[0]
+            name, sid = sample_student["name"], sample_student["id"]
+            text = sample_student["text"]
+            safe_name = sample_student["filename"]
 
             if not text.strip():
                 st.warning("⚠️ 텍스트를 추출하지 못했습니다.")
@@ -158,8 +164,7 @@ def run_step2():
 9. 전체 점수는 문제별 배점을 절대 초과하면 안 됩니다.
 10. 표 아래에 다음 문장을 작성하세요:
    **총점: XX점**
-
-   """
+"""
 
             with st.spinner("GPT가 채점 중입니다..."):
                 result = grade_answer(prompt)
@@ -171,12 +176,6 @@ def run_step2():
             st.session_state.last_grading_result = result
             st.session_state.last_selected_student = {"name": name, "id": sid}
             st.success("✅ 채점 완료")
-            st.session_state.student_answers_data = [{
-            "name": name,
-            "id": sid,
-            "text": text,
-            "filename": safe_name
-            }]
 
     else:
         st.warning("STEP 1에서 문제를 먼저 업로드해야 합니다.")
