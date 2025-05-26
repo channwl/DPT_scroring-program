@@ -161,16 +161,16 @@ def run_step2():
 
    """
 
-            with st.spinner("GPT가 채점 중입니다..."):
-                result = grade_answer(prompt)
+        with st.spinner("GPT가 채점 중입니다..."):
+            result = grade_answer(prompt)
 
-            if not isinstance(result, str) or result.startswith("[오류]"):
-                st.error(f"GPT 응답 오류:\n{result}")
-                return
+        if not isinstance(result, str) or result.startswith("[오류]"):
+            st.error(f"GPT 응답 오류:\n{result}")
+            return
 
-            st.session_state.last_grading_result = result
-            st.session_state.last_selected_student = selected_student
-            st.success("✅ 채점 완료")
+        st.session_state.last_grading_result = result
+        st.session_state.last_selected_student = {"name": name, "id": sid}
+        st.success("✅ 채점 완료")
 
     else:
         st.warning("STEP 1에서 문제를 먼저 업로드해야 합니다.")
