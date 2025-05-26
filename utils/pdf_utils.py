@@ -4,7 +4,7 @@ PDF에서 최대한 텍스트를 추출하기 위한 모듈.
 - Carbon 캡처처럼 어두운 배경 이미지는 Gemini Vision OCR로 코드 추출
 """
 
-import io, re, o
+import io, re
 from typing import Union, List, Sequence
 
 import pdfplumber #pdf의 텍스트 레이어 추출
