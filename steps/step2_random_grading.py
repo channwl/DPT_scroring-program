@@ -108,12 +108,12 @@ def run_step2():
             st.markdown("#### 📊 채점 기준")
             st.markdown(rubric)
 
-        student_pdfs = st.file_uploader("📥 학생 답안 PDF 업로드 (여러 개 가능)", 
+        student_pdfs = st.file_uploader("📥 채점 기준 테스트 파일 업로드", 
                                         type="pdf", 
                                         accept_multiple_files=True,
                                         key="student_pdfs_upload")
 
-        if student_pdfs and st.button("무작위 답안 채점"):
+        if student_pdfs and st.button("임시 채점"):
             selected_file = student_pdfs[0]  # 첫 번째 파일만 채점
             safe_name = sanitize_filename(selected_file.name)
             name, sid = extract_info_from_filename(selected_file.name)
