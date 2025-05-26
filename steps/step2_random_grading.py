@@ -171,6 +171,12 @@ def run_step2():
             st.session_state.last_grading_result = result
             st.session_state.last_selected_student = {"name": name, "id": sid}
             st.success("✅ 채점 완료")
+            st.session_state.student_answers_data = [{
+            "name": name,
+            "id": sid,
+            "text": text,
+            "filename": safe_name
+            }]
 
     else:
         st.warning("STEP 1에서 문제를 먼저 업로드해야 합니다.")
