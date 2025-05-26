@@ -17,29 +17,39 @@ def run_step4():
     st.subheader("📄 STEP 4: 전체 학생 답안 일괄 채점")
 
     rubric_key = f"rubric_{st.session_state.problem_filename}"
-    rubric_text = st.session_state.modified_rubrics.get(rubric_key) or st.session_state.generated_rubrics.get(rubric_key)
+    rubric_text = (
+        st.session_state.modified_rubrics.get(rubric_key)
+        or st.session_state.generated_rubrics.get(rubric_key)
+    )
 
     if not rubric_text:
         st.warning("채점 기준이 없습니다. STEP 1을 먼저 진행하세요.")
-        return
-    elif not st.session_state.student_answers_data:
-        st.warning("학생 답안이 없습니다. STEP 2를 먼저 진행하세요.")
         return
 
     st.subheader("📊 채점 기준")
     st.markdown(rubric_text)
 
+    # STEP2에서 저장한 전체 PDF 리스트가 있어야 진행
+    if not st.session_state.get("all_student_pdfs"):
+        st.warning("학생 답안이 없습니다. STEP 2를 먼저 진행하세요.")
+        return
+
     if st.button("📝 전체 학생 채점 실행"):
+        # 전체 PDF를 다시 처리해서 answers, info 얻기 (세션에 저장됨)
+        answers, info = process_student_pdfs(st.session_state.all_student_pdfs)
+        if not answers:
+            st.error("학생 답안 처리에 실패했습니다.")
+            return
+
         st.session_state.highlighted_results = []
         progress_bar = st.progress(0)
-        total_students = len(st.session_state.student_answers_data)
+        total_students = len(info)
 
         with st.spinner("GPT가 채점 중입니다..."):
-            for i, student in enumerate(st.session_state.student_answers_data):
+            for i, student in enumerate(info):
                 name, sid, answer = student["name"], student["id"], student["text"]
 
                 prompt = f"""
-                
 당신은 대학 시험을 채점하는 GPT 채점자입니다.
 
 당신의 역할은, 사람이 작성한 "채점 기준"에 **엄격하게 따라** 학생의 답안을 채점하는 것입니다.  
@@ -84,8 +94,9 @@ def run_step4():
 **근거 문장**
 - 핵심 개념 설명: "텍스트 전처리는 토크나이징에서 시작한다", "불용어 제거가 필요하다"
 - 논리 전개: "이어서 모델에 입력하기 위한 절차를 구성했다"
+
 8. 그리고 채점 결과를 문제별로 묶어서 보여주세요.
-9. 채점 결과 점수는 전체 채점 점수여야합니다.
+9. 채점 결과 점수는 전체 채점 점수여야 합니다.
 """
                 result = grade_answer(prompt)
                 grading_result = result
