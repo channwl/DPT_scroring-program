@@ -7,6 +7,17 @@ from utils.score_utils import extract_total_score, extract_evidence_sentences, e
 from utils.text_cleaning import apply_indentation
 import re
 
+student_pdfs = st.file_uploader("📥 전체 학생 답안 PDF 업로드 (여러 개 가능)", 
+                                type="pdf", 
+                                accept_multiple_files=True,
+                                key="batch_student_pdfs_upload")
+
+if student_pdfs:
+    # Step2의 process_student_pdfs 재사용
+    from steps.step2_process import process_student_pdfs  # 또는 직접 함수 복붙
+    answers, info = process_student_pdfs(student_pdfs)
+    st.session_state.student_answers_data = info
+
 def extract_total_score(text: str) -> float:
     matches = re.findall(r"총점[:：]?\s*(\d+(?:\.\d+)?)", text)
     if matches:
