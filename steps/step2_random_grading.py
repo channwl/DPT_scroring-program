@@ -1,5 +1,4 @@
 import streamlit as st
-import random
 import io
 import re
 import tempfile
