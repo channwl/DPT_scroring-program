@@ -117,27 +117,16 @@ def run_step2():
 
         # '임시 채점' 버튼을 누르면 첫 번째 PDF만 채점
         if student_pdfs and st.button("임시 채점"):
-            selected_file = student_pdfs[0]
-            # 1) 업로드된 파일을 임시 디스크에 저장
-            uploaded_path, safe_name = save_uploaded_file(selected_file)
-            # 2) 파일명에서 학생 이름, 학번 추출
-            name, sid = extract_info_from_filename(selected_file.name)
-
-            # 3) 텍스트 추출
-            with st.spinner("학생 답안을 처리 중입니다..."):
-                text = extract_text_from_pdf(uploaded_path)
-                text = clean_text_postprocess(text)
-
-            # 4) 임시파일 삭제
-            try:
-                os.unlink(uploaded_path)
-            except:
-                pass
-
-            # 5) 추출된 텍스트가 없으면 경고
-            if not text.strip():
-                st.warning("⚠️ 텍스트를 추출하지 못했습니다.")
+            #모든 PDF를 처리해서, anser,info에 저장
+            answers, info = process_student_pdfs(student_pdfs)
+            if not answers:
+                st.warning("처리할 학생 답안이 없습니다.")
                 return
+
+            # ▶ 첫 번째 학생만 임시 채점
+            first_answer = answers[0]
+            first_info   = info[0]
+            name, sid    = first_info['name'], first_info['id']
 
             # 6) GPT 채점 프롬프트 생성
             prompt = f"""당신은 대학 시험을 채점하는 GPT 채점자입니다.
@@ -149,7 +138,8 @@ def run_step2():
 {rubric}
 
 다음은 학생 답안입니다:
-{text}
+학생({name}, {sid})의 답안입니다:
+{first_answer}
 
 📌 채점 출력 형식
 다음 형식의 마크다운 표를 작성하세요:
@@ -186,12 +176,6 @@ def run_step2():
             # 9) 세션에 결과 저장 및 표시 준비
             st.session_state.last_grading_result = result
             st.session_state.last_selected_student = {"name": name, "id": sid}
-            st.session_state.student_answers_data = [{
-                "name": name,
-                "id": sid,
-                "text": text,
-                "filename": safe_name
-            }]
             st.success("✅ 채점 완료")
 
     else:
