@@ -77,7 +77,7 @@ def process_student_pdfs(pdf_files, save_session:bool = True):
             except:
                 pass  # 삭제 실패해도 계속 진행
 
-            if len(text.strip()) > 20:
+            if len(text.strip()) > 5:
                 answers.append(text)
                 info.append({'name': name, 'id': sid, 'text': text, 'filename': safe_name})
             else:
