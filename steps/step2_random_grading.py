@@ -98,53 +98,58 @@ def run_step2():
     st.subheader("📄 STEP 2: 학생 답안 업로드 및 첫 번째 답안 채점")
 
     # STEP 1에서 생성된 문제와 파일명이 있어야 진행 가능
-    if st.session_state.get("problem_text") and st.session_state.get("problem_filename"):
-        rubric_key = f"rubric_{st.session_state.problem_filename}"
-        rubric = st.session_state.generated_rubrics.get(rubric_key)
+    if not (st.session_state.get("problem_text") and st.session_state.get("problem_filename")):
+        st.warning("STEP 1에서 문제를 먼저 업로드해야 합니다.")
+        return
 
-        if rubric:
-            st.markdown("#### 📊 채점 기준")
-            st.markdown(rubric)
+    rubric_key = f"rubric_{st.session_state.problem_filename}"
+    rubric = st.session_state.generated_rubrics.get(rubric_key)
 
-        # 학생 PDF 업로드 UI
-        student_pdfs = st.file_uploader(
-        "📥 채점 기준 테스트 파일 업로드",
+    if rubric:
+        st.markdown("#### 📊 채점 기준")
+        st.markdown(rubric)
+
+    # 1️⃣ 학생 PDF 업로드
+    student_pdfs = st.file_uploader(
+        "📥 채점 기준 테스트용 학생 PDF 업로드",
         type="pdf",
         accept_multiple_files=True,
         key="student_pdfs_upload"
-        )
-        
-        if student_pdfs:
-            # 전체 리스트 세션에 저장
-            st.session_state.all_student_pdfs = student_pdfs
+    )
 
-        # 2) '무작위 채점' 버튼을 누르면 첫 번째 PDF만 처리
-        if st.session_state.get("all_student_pdfs") and st.button("📌 무작위 채점"):
-            pdfs_to_grade = st.session_state.all_student_pdfs
-            first_pdf = pdfs_to_grade[0]
-            # save_session=False 로 전체 세션 데이터 덮어쓰지 않기
-            answers, info = process_student_pdfs([first_pdf], save_session=False)
-            if not answers:
-                st.warning("처리할 학생 답안이 없습니다.")
-                return
+    if student_pdfs:
+        # 파일 전체 세션 저장
+        st.session_state.all_student_pdfs = student_pdfs
 
-            # ▶ 첫 번째 학생만 임시 채점
-            first_answer = answers[0]
-            first_info   = info[0]
-            name, sid    = first_info['name'], first_info['id']
+        # 2️⃣ 텍스트 추출 & 세션에 저장 (최초 한 번만)
+        if "student_answers_data" not in st.session_state:
+            _, all_info = process_student_pdfs(student_pdfs, save_session=False)
+            st.session_state["student_answers_data"] = all_info
+            st.success(f"✅ 총 {len(all_info)}개의 학생 답안을 세션에 저장했습니다.")
+        else:
+            st.info(f"이미 {len(st.session_state['student_answers_data'])}개의 답안이 저장돼 있습니다.")
 
-            # 6) GPT 채점 프롬프트 생성
-            prompt = f"""당신은 대학 시험을 채점하는 GPT 채점자입니다.
+    # 3️⃣ 무작위 채점 버튼 → 저장된 텍스트에서 한 명 추출
+    if st.session_state.get("student_answers_data") and st.button("📌 무작위 채점"):
+        import random
+        all_info = st.session_state["student_answers_data"]
+        student = random.choice(all_info)
+
+        name = student["name"]
+        sid = student["id"]
+        answer = student["text"]
+
+        # GPT 프롬프트 구성
+        prompt = f"""당신은 대학 시험을 채점하는 GPT 채점자입니다.
 
 당신의 역할은, 사람이 작성한 "채점 기준"에 **엄격하게 따라** 학생의 답안을 채점하는 것입니다.  
 **창의적인 해석이나 기준 변경 없이**, 각 항목에 대해 **정확한 근거와 함께 점수를 부여**해야 합니다.
 
-아래는 교수자가 만든 채점 기준입니다:
+📌 채점 기준:
 {rubric}
 
-다음은 학생 답안입니다:
-학생({name}, {sid})의 답안입니다:
-{first_answer}
+📌 학생({name}, {sid})의 답안:
+{answer}
 
 📌 채점 출력 형식
 다음 형식의 마크다운 표를 작성하세요:
@@ -167,27 +172,25 @@ def run_step2():
 9. 전체 점수는 문제별 배점을 절대 초과하면 안 됩니다.
 10. 표 아래에 다음 문장을 작성하세요:
    **총점: XX점**
-
 """
-            # 7) GPT 호출
-            with st.spinner("GPT가 채점 중입니다..."):
-                result = grade_answer(prompt)
 
-            # 8) 에러 처리
-            if not isinstance(result, str) or result.startswith("[오류]"):
-                st.error(f"GPT 응답 오류:\n{result}")
-                return
+        # GPT 채점 호출
+        with st.spinner("🤖 GPT가 채점 중입니다..."):
+            result = grade_answer(prompt)
 
-            # 9) 세션에 결과 저장 및 표시 준비
-            st.session_state.last_grading_result = result
-            st.session_state.last_selected_student = {"name": name, "id": sid}
-            st.success("✅ 채점 완료")
+        # 오류 처리
+        if not isinstance(result, str) or result.startswith("[오류]"):
+            st.error(f"GPT 응답 오류:\n{result}")
+            return
 
-    else:
-        st.warning("STEP 1에서 문제를 먼저 업로드해야 합니다.")
+        # 채점 결과 세션 저장 및 출력
+        st.session_state.last_grading_result = result
+        st.session_state.last_selected_student = {"name": name, "id": sid}
+        st.success("✅ 무작위 학생 채점 완료!")
 
-    # 10) 이전 채점 결과가 있으면 화면에 출력
+    # 4️⃣ 이전 결과 있으면 표시
     if st.session_state.get("last_grading_result"):
         stu = st.session_state.last_selected_student
         st.markdown(f"### 📋 채점 결과 - {stu['name']} ({stu['id']})")
         st.markdown(st.session_state.last_grading_result)
+
