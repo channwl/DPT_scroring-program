@@ -1,7 +1,7 @@
 langchain>=0.1.17
 langchain-core>=0.1.31
 langchain-community>=0.0.21
-openai
+openai>=1.14.0
 tiktoken
 streamlit==1.44.0
 pyMuPDF
