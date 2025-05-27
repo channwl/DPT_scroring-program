@@ -37,11 +37,11 @@ def run_step4():
 
     if st.button("📝 전체 학생 채점 실행"):
         # 전체 PDF를 다시 처리해서 answers, info 얻기 (세션에 저장됨)
-        answers, info = process_student_pdfs(st.session_state.all_student_pdfs)
-        if not answers:
-            st.error("학생 답안 처리에 실패했습니다.")
+        info = st.session_state.get("student_answers_data", [])
+        if not info:
+            st.error("STEP 2에서 학생 답안 텍스트를 먼저 저장해야 합니다.")
             return
-
+            
         st.session_state.highlighted_results = []
         progress_bar = st.progress(0)
         total_students = len(info)
@@ -99,9 +99,7 @@ def run_step4():
 8. 그리고 채점 결과를 문제별로 묶어서 보여주세요.
 9. 채점 결과 점수는 전체 채점 점수여야 합니다.
 """
-                result = grade_answer(prompt)
-                grading_result = result
-
+                grading_result = grade_answer(prompt)
                 evidence_sentences = extract_evidence_sentences(grading_result)
                 total_score = extract_total_score(grading_result)
                 feedback = extract_summary_feedback(grading_result)
