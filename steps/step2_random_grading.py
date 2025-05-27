@@ -117,17 +117,16 @@ def run_step2():
         if student_pdfs:
             st.session_state.all_student_pdfs = student_pdfs
 
-            if st.button("🗄️ PDF 답안 텍스트 저장하기"):
-                with st.spinner("📄 PDF에서 텍스트 추출 중..."):
-                    answers, info = process_student_pdfs(student_pdfs, save_session=True)
+            with st.spinner("📄 PDF에서 텍스트 추출 중..."):
+                answers, info = process_student_pdfs(student_pdfs, save_session=True)
 
-                if len(info) == 0:
-                    st.error("❌ 텍스트를 추출하지 못했습니다. 스캔본일 수 있습니다.")
-                else:
-                    st.success(f"✅ {len(info)}개 PDF에서 텍스트 저장 완료")
-                    st.write("🔎 저장된 학생 목록:")
-                    for i in info:
-                        st.markdown(f"- **{i['name']} ({i['id']})** → `{i['filename']}`")
+            if len(info) == 0:
+                st.error("❌ 텍스트를 추출하지 못했습니다. 스캔본일 수 있습니다.")
+            else:
+                st.success(f"✅ {len(info)}개 PDF에서 텍스트 저장 완료")
+                st.write("🔎 저장된 학생 목록:")
+                for i in info:
+                    st.markdown(f"- **{i['name']} ({i['id']})** → `{i['filename']}`")
 
         # 2) '무작위 채점' 버튼을 누르면 첫 번째 PDF만 처리
         if st.session_state.get("all_student_pdfs") and st.button("📌 무작위 채점"):
