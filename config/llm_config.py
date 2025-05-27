@@ -11,6 +11,6 @@ def get_llm():
     """
     return ChatOpenAI(
         openai_api_key=st.secrets["openai"]["API_KEY"],
-        model_name="gpt-o3-2025-04-16",
+        model_name="o3-mini",
         temperature=0
     )
