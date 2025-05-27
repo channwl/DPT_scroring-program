@@ -117,6 +117,11 @@ def run_step2():
         if student_pdfs:
             # 전체 리스트 세션에 저장
             st.session_state.all_student_pdfs = student_pdfs
+            if "student_answers_data" not in st.session_state:
+                with st.spinner("PDF에서 텍스트 추출 중..."):
+                     _, _ = process_student_pdfs(student_pdfs, save_session=True)
+                st.success(f"✅ {len(st.session_state.student_answers_data)}개 답안 텍스트 저장 완료")
+
 
         # 2) '무작위 채점' 버튼을 누르면 첫 번째 PDF만 처리
         if st.session_state.get("all_student_pdfs") and st.button("📌 무작위 채점"):
