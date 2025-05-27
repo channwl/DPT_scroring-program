@@ -17,6 +17,7 @@ def extract_total_score(text: str) -> float:
 def run_step4():
     st.subheader("📄 STEP 4: 전체 학생 답안 일괄 채점")
 
+    # 채점 기준 불러오기
     rubric_key = f"rubric_{st.session_state.problem_filename}"
     rubric_text = (
         st.session_state.modified_rubrics.get(rubric_key)
@@ -30,25 +31,24 @@ def run_step4():
     st.subheader("📊 채점 기준")
     st.markdown(rubric_text)
 
-    # STEP2에서 저장한 전체 PDF 리스트가 있어야 진행
-    if not st.session_state.get("all_student_pdfs"):
+    # STEP 2에서 추출한 텍스트가 있어야 함
+    if "student_answers_data" not in st.session_state:
         st.warning("학생 답안이 없습니다. STEP 2를 먼저 진행하세요.")
         return
 
-    if st.button("📝 전체 학생 채점 실행"):
-        # 전체 PDF를 다시 처리해서 answers, info 얻기 (세션에 저장됨)
-        answers, info = process_student_pdfs(st.session_state.all_student_pdfs)
-        if not answers:
-            st.error("학생 답안 처리에 실패했습니다.")
-            return
+    info = st.session_state["student_answers_data"]
+    total_students = len(info)
 
+    # 버튼 눌렀을 때 채점 시작
+    if st.button("📝 전체 학생 채점 실행"):
         st.session_state.highlighted_results = []
         progress_bar = st.progress(0)
-        total_students = len(info)
 
-        with st.spinner("GPT가 채점 중입니다..."):
+        with st.spinner("🤖 GPT가 채점 중입니다..."):
             for i, student in enumerate(info):
-                name, sid, answer = student["name"], student["id"], student["text"]
+                name = student["name"]
+                sid = student["id"]
+                answer = student["text"]
 
                 prompt = f"""
 당신은 대학 시험을 채점하는 GPT 채점자입니다.
@@ -80,7 +80,7 @@ def run_step4():
 2. 각 항목의 "부여 점수"는 해당 항목 배점 이내에서 학생 답안을 기준으로 정확히 결정하세요.
 3. "평가 근거"는 반드시 학생 답안에서 확인 가능한 내용으로 작성하세요. 추상적 표현(예: '잘함', '훌륭함')은 금지입니다.
 4. 모든 출력은 **한글로만** 작성하고, 영어는 절대 사용하지 마세요.
-5. 명확하게 채점 기준에 따른 내용이 모두 구체적으로 포함된 경우에만 **만점(1~2점)**을 부여하세요.
+5. 명확하게 채점 기준에 따른 내용이 모두 포함된 경우에만 **만점(1~2점)**을 부여하세요.
 6. 단어만 언급하거나 의미가 불명확한 경우는 **0점 또는 부분점수(0.5점 이하)**를 부여하세요.
 7. 불완전하거나 비논리적인 설명은 반드시 감점 대상입니다.
 8. 예시를 제공하라는 문제에서는, 예시가 구체적으로 제공되지 않으면 감점해주세요. 또한 각 내용의 설명이 구체적이지 않은 경우에도 감점해주세요.
@@ -99,9 +99,11 @@ def run_step4():
 8. 그리고 채점 결과를 문제별로 묶어서 보여주세요.
 9. 채점 결과 점수는 전체 채점 점수여야 합니다.
 """
-                result = grade_answer(prompt)
-                grading_result = result
 
+                # GPT 채점
+                grading_result = grade_answer(prompt)
+
+                # 점수, 근거 추출
                 evidence_sentences = extract_evidence_sentences(grading_result)
                 total_score = extract_total_score(grading_result)
                 feedback = extract_summary_feedback(grading_result)
@@ -115,11 +117,13 @@ def run_step4():
                     "original_text": answer,
                     "evidence_sentences": evidence_sentences
                 })
+
                 progress_bar.progress((i + 1) / total_students)
 
         st.success(f"✅ 전체 {total_students}명 학생 채점 완료!")
 
-    if st.session_state.highlighted_results:
+    # 결과 출력
+    if st.session_state.get("highlighted_results"):
         sorted_results = sorted(
             st.session_state.highlighted_results,
             key=lambda x: x["score"] if x["score"] is not None else 0,
@@ -146,3 +150,5 @@ def run_step4():
                     st.markdown("**📄 문단 구조로 정리된 답안**")
                     formatted = apply_indentation(result["original_text"])
                     st.markdown(formatted, unsafe_allow_html=True)
+
+                
