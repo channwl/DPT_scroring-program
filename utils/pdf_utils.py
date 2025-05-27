@@ -82,7 +82,7 @@ def extract_text_from_pdf(pdf_data: Union[str, bytes, "UploadedFile"]) -> str:
         for idx, page in enumerate(pdf.pages):
             base_text = page.extract_text() or "" #기본 텍스트 추출 + OCR 필요성 판단
             img_objs: Sequence = page.objects.get("image", getattr(page, "images", []))
-            needs_ocr = len(base_text.strip()) < MIN_CHARS or len(img_objs) > 0
+            needs_ocr = len(img_objs) > 0
 
             #코드 이미지(Gemini OCR) 보강 - carbon 대비
             try:
