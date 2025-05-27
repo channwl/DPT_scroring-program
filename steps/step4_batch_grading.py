@@ -51,7 +51,7 @@ def run_step4():
         progress_bar = st.progress(0)
         total_students = len(info)
 
-        with st.spinner("GPT가 채점 중입니다..."):
+        with st.spinner("프로그램이 채점 중입니다..."):
             for i, student in enumerate(info):
                 name, sid, answer = student["name"], student["id"], student["text"]
 
