@@ -54,7 +54,7 @@ with st.sidebar:
     st.session_state.feedback_text = feedback
 
     with st.expander("ℹ️ 사용법 안내 보기"):
-    st.markdown("""
+        st.markdown("""
 **STEP 1:** 문제 업로드 → 채점 기준 생성  
 시험 문제 PDF를 업로드하면, GPT가 자동으로 채점 기준을 생성해 줍니다.
 
