@@ -99,7 +99,7 @@ def run_step1():
                         st.session_state.rubric_memory = {}
                     st.session_state.rubric_memory.clear()
                     
-                    with st.spinner("GPT가 채점 기준을 생성 중입니다..."):
+                    with st.spinner("프로그램이 채점 기준을 생성 중입니다..."):
                         result = generate_rubric(text)
                         st.session_state.generated_rubrics[rubric_key] = result
                         st.success("✅ 채점 기준 생성 완료")
@@ -111,7 +111,7 @@ def run_step1():
                             st.session_state.rubric_memory = {}
                         st.session_state.rubric_memory.clear()
                         
-                        with st.spinner("GPT가 채점 기준을 재생성 중입니다..."):
+                        with st.spinner("프로그램이 채점 기준을 재생성 중입니다..."):
                             result = generate_rubric(text)
                             st.session_state.generated_rubrics[rubric_key] = result
                             st.success("✅ 채점 기준 재생성 완료")
