@@ -54,12 +54,20 @@ with st.sidebar:
     st.session_state.feedback_text = feedback
 
     with st.expander("ℹ️ 사용법 안내 보기"):
-        st.markdown("""
+    st.markdown("""
 **STEP 1:** 문제 업로드 → 채점 기준 생성  
+시험 문제 PDF를 업로드하면, GPT가 자동으로 채점 기준을 생성해 줍니다.
+
 **STEP 2:** 학생 답안 업로드 → 무작위 채점  
+학생 답안 PDF를 업로드하고, 한 명을 무작위로 선택해 GPT가 채점해봅니다.
+
 **STEP 3:** 교수자 피드백 → 기준 수정  
-**STEP 4:** 전체 학생 자동 채점 + 하이라이팅
+채점 기준을 검토하고 필요시 수정하여 최종 기준으로 확정합니다.
+
+**STEP 4:** 전체 학생 자동 채점 + 하이라이팅  
+확정된 기준으로 모든 학생 답안을 자동 채점하고, 근거 문장도 함께 표시됩니다.
 """)
+
 
 # STEP 실행 흐름
 if st.session_state.step == 1:
