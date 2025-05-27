@@ -181,7 +181,7 @@ def run_step2():
 
 """
             # 7) GPT 호출
-            with st.spinner("GPT가 채점 중입니다..."):
+            with st.spinner("프로그램이 채점 중입니다..."):
                 result = grade_answer(prompt)
 
             # 8) 에러 처리
