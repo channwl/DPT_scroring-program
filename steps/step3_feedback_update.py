@@ -53,7 +53,7 @@ def run_step3():
 
 이제 채점 기준을 생성하세요.
 """
-                with st.spinner("GPT가 기준을 수정 중입니다..."):
+                with st.spinner("기준을 수정 중입니다..."):
                     updated = grade_answer(prompt)
                     st.session_state.modified_rubrics[rubric_key] = updated
                     st.success("✅ 채점 기준 수정 완료")
