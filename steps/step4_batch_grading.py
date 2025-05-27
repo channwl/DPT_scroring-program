@@ -39,7 +39,12 @@ def run_step4():
         # 전체 PDF를 다시 처리해서 answers, info 얻기 (세션에 저장됨)
         info = st.session_state.get("student_answers_data", [])
         if not info:
-            st.error("STEP 2에서 학생 답안 텍스트를 먼저 저장해야 합니다.")
+            st.warning("❗ Step 2에서 텍스트를 저장하지 않았습니다. 즉시 PDF에서 추출합니다.")
+            with st.spinner("📂 PDF에서 텍스트 추출 중..."):
+                _, info = process_student_pdfs(st.session_state.all_student_pdfs, save_session=True)
+
+        if not info:
+            st.error("❌ 텍스트 추출 실패. 스캔본이거나 PDF에 텍스트가 없습니다.")
             return
             
         st.session_state.highlighted_results = []
